@@ -1,0 +1,23 @@
+# Cursor Rules for SmartCollectionView Project
+
+## Future Enhancements
+- Always check `FUTURE_TODOS.md` before implementing new features or making architectural decisions
+- Future work items include: view recycling, off-screen unmounting, maxHeight optimization, localData strategy review, and layout enhancements (vertical list, horizontal/vertical grids, custom layouts)
+- When adding new features, evaluate if they align with items in FUTURE_TODOS.md
+
+## Layout Architecture
+- Current implementation is **horizontal list/grid only**
+- Layout calculations are hardcoded for horizontal scrolling in `performFullLayoutRecompute`
+- When expanding to other layouts (vertical list, grids), refactor layout logic into layout providers or a switch statement based on layout type
+- Keep layout-specific calculations isolated and easily swappable
+
+## Code Style
+- Use `SCVLog`, `SCVShadowLog`, `SCVManagerLog` macros for debugging (filterable by module)
+- All layout calculations should log frames, sizes, and directions for debugging
+- Shadow view and native view prop synchronization is handled via `syncPropsToShadowView`
+
+## React Native Version
+- Target: React Native 0.72.3 (legacy architecture)
+- iOS only for POC
+- Uses shadow node interception pattern for virtualization
+
