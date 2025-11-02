@@ -1,0 +1,56 @@
+block in append_cflags: checking for whether -std=c99 is accepted as CFLAGS... -------------------- yes
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+ld: warning: ignoring file '/Users/red/.rbenv/versions/2.7.5/lib/libruby.2.7.dylib': found architecture 'arm64', required architecture 'x86_64'
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: int main(int argc, char **argv)
+4: {
+5:   return !!argv[argc];
+6: }
+/* end */
+
+"clang -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe -m64 -std=c99 -Werror -c conftest.c"
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: int main(int argc, char **argv)
+4: {
+5:   return !!argv[argc];
+6: }
+/* end */
+
+--------------------
+
+have_header: checking for arm_neon.h... -------------------- no
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe -std=c99  conftest.c -o conftest.i"
+In file included from conftest.c:3:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/arm_neon.h:28:2: error: "NEON intrinsics not available with the soft-float ABI. Please use -mfloat-abi=softfp or -mfloat-abi=hard"
+   28 | #error "NEON intrinsics not available with the soft-float ABI. Please use -mfloat-abi=softfp or -mfloat-abi=hard"
+      |  ^
+1 error generated.
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <arm_neon.h>
+/* end */
+
+--------------------
+
+have_header: checking for cpuid.h... -------------------- yes
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe -std=c99  conftest.c -o conftest.i"
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <cpuid.h>
+/* end */
+
+--------------------
+

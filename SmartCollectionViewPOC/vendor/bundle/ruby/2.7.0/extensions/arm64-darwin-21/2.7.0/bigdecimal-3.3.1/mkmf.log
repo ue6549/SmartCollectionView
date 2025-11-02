@@ -1,0 +1,521 @@
+have_builtin_func: checking for __builtin_clz()... -------------------- yes
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+ld: warning: ignoring file '/Users/red/.rbenv/versions/2.7.5/lib/libruby.2.7.dylib': found architecture 'arm64', required architecture 'x86_64'
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: int main(int argc, char **argv)
+4: {
+5:   return !!argv[argc];
+6: }
+/* end */
+
+"clang -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe -m64  -c conftest.c"
+conftest.c:4:14: warning: ignoring return value of function declared with const attribute [-Wunused-value]
+    4 | int main() { __builtin_clz(0); return 0; }
+      |              ^~~~~~~~~~~~~ ~
+1 warning generated.
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: int foo;
+4: int main() { __builtin_clz(0); return 0; }
+/* end */
+
+--------------------
+
+have_builtin_func: checking for __builtin_clzl()... -------------------- yes
+
+"clang -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe -m64  -c conftest.c"
+conftest.c:4:14: warning: ignoring return value of function declared with const attribute [-Wunused-value]
+    4 | int main() { __builtin_clzl(0); return 0; }
+      |              ^~~~~~~~~~~~~~ ~
+1 warning generated.
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: int foo;
+4: int main() { __builtin_clzl(0); return 0; }
+/* end */
+
+--------------------
+
+have_builtin_func: checking for __builtin_clzll()... -------------------- yes
+
+"clang -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe -m64  -c conftest.c"
+conftest.c:4:14: warning: ignoring return value of function declared with const attribute [-Wunused-value]
+    4 | int main() { __builtin_clzll(0); return 0; }
+      |              ^~~~~~~~~~~~~~~ ~
+1 warning generated.
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: int foo;
+4: int main() { __builtin_clzll(0); return 0; }
+/* end */
+
+--------------------
+
+have_header: checking for float.h... -------------------- yes
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe  conftest.c -o conftest.i"
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <float.h>
+/* end */
+
+--------------------
+
+have_header: checking for math.h... -------------------- yes
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe  conftest.c -o conftest.i"
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <math.h>
+/* end */
+
+--------------------
+
+have_header: checking for stdbool.h... -------------------- yes
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe  conftest.c -o conftest.i"
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <stdbool.h>
+/* end */
+
+--------------------
+
+have_header: checking for stdlib.h... -------------------- yes
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe  conftest.c -o conftest.i"
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <stdlib.h>
+/* end */
+
+--------------------
+
+have_header: checking for x86intrin.h... -------------------- yes
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe  conftest.c -o conftest.i"
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <x86intrin.h>
+/* end */
+
+--------------------
+
+have_func: checking for _lzcnt_u32() in x86intrin.h... -------------------- yes
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+ld: warning: ignoring file '/Users/red/.rbenv/versions/2.7.5/lib/libruby.2.7.dylib': found architecture 'arm64', required architecture 'x86_64'
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <x86intrin.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: int t(void) { void ((*volatile p)()); p = (void ((*)()))_lzcnt_u32; return !p; }
+/* end */
+
+--------------------
+
+have_func: checking for _lzcnt_u64() in x86intrin.h... -------------------- yes
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+ld: warning: ignoring file '/Users/red/.rbenv/versions/2.7.5/lib/libruby.2.7.dylib': found architecture 'arm64', required architecture 'x86_64'
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <x86intrin.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: int t(void) { void ((*volatile p)()); p = (void ((*)()))_lzcnt_u64; return !p; }
+/* end */
+
+--------------------
+
+have_header: checking for intrin.h... -------------------- no
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe  conftest.c -o conftest.i"
+In file included from conftest.c:3:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/intrin.h:12:15: fatal error: 'intrin.h' file not found
+   12 | #include_next <intrin.h>
+      |               ^~~~~~~~~~
+1 error generated.
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <intrin.h>
+/* end */
+
+--------------------
+
+have_header: checking for ruby/atomic.h... -------------------- no
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe  conftest.c -o conftest.i"
+conftest.c:3:10: fatal error: 'ruby/atomic.h' file not found
+    3 | #include <ruby/atomic.h>
+      |          ^~~~~~~~~~~~~~~
+conftest.c:3:10: note: did not find header 'atomic.h' in framework 'ruby' (loaded from '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks')
+1 error generated.
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <ruby/atomic.h>
+/* end */
+
+--------------------
+
+have_header: checking for ruby/internal/has/builtin.h... -------------------- no
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe  conftest.c -o conftest.i"
+conftest.c:3:10: fatal error: 'ruby/internal/has/builtin.h' file not found
+    3 | #include <ruby/internal/has/builtin.h>
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+conftest.c:3:10: note: did not find header 'internal/has/builtin.h' in framework 'ruby' (loaded from '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks')
+1 error generated.
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <ruby/internal/has/builtin.h>
+/* end */
+
+--------------------
+
+have_header: checking for ruby/internal/static_assert.h... -------------------- no
+
+"clang -E -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe  conftest.c -o conftest.i"
+conftest.c:3:10: fatal error: 'ruby/internal/static_assert.h' file not found
+    3 | #include <ruby/internal/static_assert.h>
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+conftest.c:3:10: note: did not find header 'internal/static_assert.h' in framework 'ruby' (loaded from '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks')
+1 error generated.
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <ruby/internal/static_assert.h>
+/* end */
+
+--------------------
+
+have_func: checking for rb_complex_real() in ruby.h... -------------------- no
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+ld: warning: ignoring file '/Users/red/.rbenv/versions/2.7.5/lib/libruby.2.7.dylib': found architecture 'arm64', required architecture 'x86_64'
+Undefined symbols for architecture x86_64:
+  "_rb_complex_real", referenced from:
+      _t in conftest-197f8e.o
+ld: symbol(s) not found for architecture x86_64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <ruby.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: int t(void) { void ((*volatile p)()); p = (void ((*)()))rb_complex_real; return !p; }
+/* end */
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+conftest.c:16:13: warning: a function declaration without a prototype is deprecated in all versions of C and is treated as a zero-parameter prototype in C23, conflicting with a previous declaration [-Wdeprecated-non-prototype]
+   16 | extern void rb_complex_real();
+      |             ^
+/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/intern.h:197:7: note: conflicting prototype is here
+  197 | VALUE rb_complex_real(VALUE z);
+      |       ^
+conftest.c:16:13: error: conflicting types for 'rb_complex_real'
+   16 | extern void rb_complex_real();
+      |             ^
+/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/intern.h:197:7: note: previous declaration is here
+  197 | VALUE rb_complex_real(VALUE z);
+      |       ^
+conftest.c:17:31: error: too few arguments to function call, single argument 'z' was not specified
+   17 | int t(void) { rb_complex_real(); return 0; }
+      |               ~~~~~~~~~~~~~~~ ^
+/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/intern.h:197:7: note: 'rb_complex_real' declared here
+  197 | VALUE rb_complex_real(VALUE z);
+      |       ^               ~~~~~~~
+1 warning and 2 errors generated.
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <ruby.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: extern void rb_complex_real();
+17: int t(void) { rb_complex_real(); return 0; }
+/* end */
+
+--------------------
+
+have_func: checking for rb_complex_imag() in ruby.h... -------------------- no
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+ld: warning: ignoring file '/Users/red/.rbenv/versions/2.7.5/lib/libruby.2.7.dylib': found architecture 'arm64', required architecture 'x86_64'
+Undefined symbols for architecture x86_64:
+  "_rb_complex_imag", referenced from:
+      _t in conftest-62bb24.o
+ld: symbol(s) not found for architecture x86_64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <ruby.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: int t(void) { void ((*volatile p)()); p = (void ((*)()))rb_complex_imag; return !p; }
+/* end */
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+conftest.c:16:13: warning: a function declaration without a prototype is deprecated in all versions of C and is treated as a zero-parameter prototype in C23, conflicting with a previous declaration [-Wdeprecated-non-prototype]
+   16 | extern void rb_complex_imag();
+      |             ^
+/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/intern.h:198:7: note: conflicting prototype is here
+  198 | VALUE rb_complex_imag(VALUE z);
+      |       ^
+conftest.c:16:13: error: conflicting types for 'rb_complex_imag'
+   16 | extern void rb_complex_imag();
+      |             ^
+/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/intern.h:198:7: note: previous declaration is here
+  198 | VALUE rb_complex_imag(VALUE z);
+      |       ^
+conftest.c:17:31: error: too few arguments to function call, single argument 'z' was not specified
+   17 | int t(void) { rb_complex_imag(); return 0; }
+      |               ~~~~~~~~~~~~~~~ ^
+/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/intern.h:198:7: note: 'rb_complex_imag' declared here
+  198 | VALUE rb_complex_imag(VALUE z);
+      |       ^               ~~~~~~~
+1 warning and 2 errors generated.
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <ruby.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: extern void rb_complex_imag();
+17: int t(void) { rb_complex_imag(); return 0; }
+/* end */
+
+--------------------
+
+have_func: checking for rb_opts_exception_p() in ruby.h... -------------------- no
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+conftest.c:16:57: error: use of undeclared identifier 'rb_opts_exception_p'
+   16 | int t(void) { void ((*volatile p)()); p = (void ((*)()))rb_opts_exception_p; return !p; }
+      |                                                         ^
+1 error generated.
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <ruby.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: int t(void) { void ((*volatile p)()); p = (void ((*)()))rb_opts_exception_p; return !p; }
+/* end */
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+ld: warning: ignoring file '/Users/red/.rbenv/versions/2.7.5/lib/libruby.2.7.dylib': found architecture 'arm64', required architecture 'x86_64'
+Undefined symbols for architecture x86_64:
+  "_rb_opts_exception_p", referenced from:
+      _t in conftest-446a64.o
+ld: symbol(s) not found for architecture x86_64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <ruby.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: extern void rb_opts_exception_p();
+17: int t(void) { rb_opts_exception_p(); return 0; }
+/* end */
+
+--------------------
+
+have_func: checking for rb_category_warn() in ruby.h... -------------------- no
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+conftest.c:16:57: error: use of undeclared identifier 'rb_category_warn'
+   16 | int t(void) { void ((*volatile p)()); p = (void ((*)()))rb_category_warn; return !p; }
+      |                                                         ^
+1 error generated.
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <ruby.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: int t(void) { void ((*volatile p)()); p = (void ((*)()))rb_category_warn; return !p; }
+/* end */
+
+"clang -o conftest -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe conftest.c  -L. -L/Users/red/.rbenv/versions/2.7.5/lib -L. -L/Users/red/.rbenv/versions/2.7.5/lib  -fstack-protector-strong  -m64   -lruby.2.7   "
+ld: warning: ignoring file '/Users/red/.rbenv/versions/2.7.5/lib/libruby.2.7.dylib': found architecture 'arm64', required architecture 'x86_64'
+Undefined symbols for architecture x86_64:
+  "_rb_category_warn", referenced from:
+      _t in conftest-75de77.o
+ld: symbol(s) not found for architecture x86_64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+checked program was:
+/* begin */
+ 1: #include "ruby.h"
+ 2: 
+ 3: #include <ruby.h>
+ 4: 
+ 5: /*top*/
+ 6: extern int t(void);
+ 7: int main(int argc, char **argv)
+ 8: {
+ 9:   if (argc > 1000000) {
+10:     int (* volatile tp)(void)=(int (*)(void))&t;
+11:     printf("%d", (*tp)());
+12:   }
+13: 
+14:   return !!argv[argc];
+15: }
+16: extern void rb_category_warn();
+17: int t(void) { rb_category_warn(); return 0; }
+/* end */
+
+--------------------
+
+have_const: checking for RB_WARN_CATEGORY_DEPRECATED in ruby.h... -------------------- no
+
+"clang -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/arm64-darwin21 -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/backward -I/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0 -I. -I/Users/red/.rbenv/versions/2.7.5/include  -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE -D_DARWIN_UNLIMITED_SELECT -D_REENTRANT   -g -O2 -fno-common -pipe -m64  -c conftest.c"
+conftest.c:7:34: error: use of undeclared identifier 'RB_WARN_CATEGORY_DEPRECATED'
+    7 | conftest_type conftestval = (int)RB_WARN_CATEGORY_DEPRECATED;
+      |                                  ^
+1 error generated.
+checked program was:
+/* begin */
+1: #include "ruby.h"
+2: 
+3: #include <ruby.h>
+4: 
+5: /*top*/
+6: typedef int conftest_type;
+7: conftest_type conftestval = (int)RB_WARN_CATEGORY_DEPRECATED;
+/* end */
+
+--------------------
+

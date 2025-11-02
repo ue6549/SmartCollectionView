@@ -1,0 +1,49 @@
+current directory: /Users/red/Development/Cursor/SmartCollectionView/SmartCollectionViewPOC/vendor/bundle/ruby/2.7.0/gems/bigdecimal-3.3.1/ext/bigdecimal
+/Users/red/.rbenv/versions/2.7.5/bin/ruby -I /Users/red/.rbenv/versions/2.7.5/lib/ruby/2.7.0 -r ./siteconf20251026-70032-1eakyo3.rb extconf.rb
+checking for __builtin_clz()... yes
+checking for __builtin_clzl()... yes
+checking for __builtin_clzll()... yes
+checking for float.h... yes
+checking for math.h... yes
+checking for stdbool.h... yes
+checking for stdlib.h... yes
+checking for x86intrin.h... yes
+checking for _lzcnt_u32() in x86intrin.h... yes
+checking for _lzcnt_u64() in x86intrin.h... yes
+checking for intrin.h... no
+checking for ruby/atomic.h... no
+checking for ruby/internal/has/builtin.h... no
+checking for ruby/internal/static_assert.h... no
+checking for rb_complex_real() in ruby.h... no
+checking for rb_complex_imag() in ruby.h... no
+checking for rb_opts_exception_p() in ruby.h... no
+checking for rb_category_warn() in ruby.h... no
+checking for RB_WARN_CATEGORY_DEPRECATED in ruby.h... no
+creating Makefile
+
+current directory: /Users/red/Development/Cursor/SmartCollectionView/SmartCollectionViewPOC/vendor/bundle/ruby/2.7.0/gems/bigdecimal-3.3.1/ext/bigdecimal
+make "DESTDIR=" clean
+
+current directory: /Users/red/Development/Cursor/SmartCollectionView/SmartCollectionViewPOC/vendor/bundle/ruby/2.7.0/gems/bigdecimal-3.3.1/ext/bigdecimal
+make "DESTDIR="
+compiling bigdecimal.c
+In file included from bigdecimal.c:11:
+In file included from ./bigdecimal.h:14:
+./missing.h:61:1: error: static declaration of 'rb_complex_real' follows non-static declaration
+   61 | rb_complex_real(VALUE cmp)
+      | ^
+/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/intern.h:197:7: note: previous declaration is here
+  197 | VALUE rb_complex_real(VALUE z);
+      |       ^
+In file included from bigdecimal.c:11:
+In file included from ./bigdecimal.h:14:
+./missing.h:73:1: error: static declaration of 'rb_complex_imag' follows non-static declaration
+   73 | rb_complex_imag(VALUE cmp)
+      | ^
+/Users/red/.rbenv/versions/2.7.5/include/ruby-2.7.0/ruby/intern.h:198:7: note: previous declaration is here
+  198 | VALUE rb_complex_imag(VALUE z);
+      |       ^
+2 errors generated.
+make: *** [bigdecimal.o] Error 1
+
+make failed, exit code 2
