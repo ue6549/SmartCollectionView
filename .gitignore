@@ -12,6 +12,10 @@ SmartCollectionViewPOC/android/local.properties
 SmartCollectionViewPOC/android/app/release/
 SmartCollectionViewPOC/android/.idea/
 
+# Ruby/Bundler
+SmartCollectionViewPOC/vendor/bundle/
+SmartCollectionViewPOC/.bundle/
+
 # macOS
 .DS_Store
 
