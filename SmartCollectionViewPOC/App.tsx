@@ -25,9 +25,9 @@ function App(): JSX.Element {
   // Create data for FlatList including header
   const widgetData = [
     { id: 'header', type: 'header' },
-    { id: 'widget1', type: 'widget' },
-    { id: 'widget2', type: 'widget' },
-    { id: 'widget3', type: 'widget' },
+    { id: 'widget1', type: 'widget', longestItemPosition: 'last' as const },
+    { id: 'widget2', type: 'widget', longestItemPosition: 'thirdLast' as const },
+    { id: 'widget3', type: 'widget', longestItemPosition: 'secondLast' as const },
   ];
 
   const renderItem = ({ item, index }: { item: any; index: number }) => {
@@ -48,7 +48,12 @@ function App(): JSX.Element {
         </View>
       );
     }
-    return <HorizontalListWidget useSmartCollection={useSmartCollection} />;
+    return (
+      <HorizontalListWidget 
+        useSmartCollection={useSmartCollection} 
+        longestItemPosition={item.longestItemPosition}
+      />
+    );
   };
 
   return (

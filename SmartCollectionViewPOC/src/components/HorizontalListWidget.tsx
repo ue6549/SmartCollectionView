@@ -9,12 +9,14 @@ const { width: screenWidth } = Dimensions.get('window');
 
 interface HorizontalListWidgetProps {
   useSmartCollection?: boolean;
+  longestItemPosition?: 'last' | 'secondLast' | 'thirdLast' | 'first' | number;
 }
 
 const HorizontalListWidget: React.FC<HorizontalListWidgetProps> = ({ 
-  useSmartCollection = false 
+  useSmartCollection = false,
+  longestItemPosition = 'last'
 }) => {
-  const [products] = useState(() => generateMockProducts(10));
+  const [products] = useState(() => generateMockProducts(10, { longestItemPosition }));
   
   const renderProductCard = ({ item, index }: { item: ProductCardType; index: number }) => {
     return <ProductCard key={item.id} product={item} />;
@@ -35,9 +37,10 @@ const HorizontalListWidget: React.FC<HorizontalListWidgetProps> = ({
             data={products}
             renderItem={renderProductCard}
             horizontal
-            initialNumToRender={10}
-            maxToRenderPerBatch={5}
-            overscanCount={3}
+            initialNumToRender={4}
+            maxToRenderPerBatch={2}
+            overscanCount={1}
+            overscanLength={1}
             estimatedItemSize={{width: screenWidth * 0.4 + 16, height: 200}}
           />
         </View>

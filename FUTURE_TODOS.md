@@ -35,6 +35,13 @@ This document tracks future improvements and enhancements for SmartCollectionVie
 - May be needed for other features beyond sizing
 - Understanding this could unlock other React Native mechanisms
 
+### UICollectionView Alternative Exploration
+- Evaluate using UICollectionView as the underlying native component instead of UIScrollView
+- Pros: Built-in cell recycling, automatic layout management, less code for layout logic
+- Cons: Need to bridge React children into UICollectionViewCell pattern (significant challenge)
+- Decision: Not pursuing for POC - sticking with UIScrollView approach
+- May revisit after POC is stable if layout management complexity becomes an issue
+
 ## Layout Enhancements
 
 ### Vertical List Layout

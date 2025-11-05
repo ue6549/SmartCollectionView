@@ -108,6 +108,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    flexWrap: 'wrap', // Allow wrapping if content is too wide
   },
   sellingPrice: {
     fontSize: 16,

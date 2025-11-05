@@ -21,3 +21,8 @@
 - iOS only for POC
 - Uses shadow node interception pattern for virtualization
 
+## Git Workflow
+- Always create a new git branch when starting work on a new feature or capability
+- Branch naming: `feature/description` for features, `fix/description` for bugs, `refactor/description` for refactoring
+- Example: `fix/child-rendering-shadow-to-native-bridge`, `refactor/height-property-setter`
+

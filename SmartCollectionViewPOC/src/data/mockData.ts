@@ -10,7 +10,14 @@ export interface ProductCard {
   tag?: string;
 }
 
-export const generateMockProducts = (count: number): ProductCard[] => {
+export interface GenerateMockProductsOptions {
+  longestItemPosition?: 'last' | 'secondLast' | 'thirdLast' | 'first' | number;
+}
+
+export const generateMockProducts = (
+  count: number, 
+  options: GenerateMockProductsOptions = {}
+): ProductCard[] => {
   const products: ProductCard[] = [];
   
   const titles = [
@@ -52,11 +59,42 @@ export const generateMockProducts = (count: number): ProductCard[] => {
     'Popular'
   ];
   
+  // Determine position of longest item
+  let longestItemIndex: number;
+  if (typeof options.longestItemPosition === 'number') {
+    longestItemIndex = options.longestItemPosition;
+  } else {
+    switch (options.longestItemPosition) {
+      case 'last':
+        longestItemIndex = count - 1;
+        break;
+      case 'secondLast':
+        longestItemIndex = count - 2;
+        break;
+      case 'thirdLast':
+        longestItemIndex = count - 3;
+        break;
+      case 'first':
+        longestItemIndex = 0;
+        break;
+      default:
+        longestItemIndex = count - 1; // Default to last
+    }
+  }
+  
+  // Ensure longestItemIndex is valid
+  longestItemIndex = Math.max(0, Math.min(longestItemIndex, count - 1));
+  
   for (let i = 0; i < count; i++) {
-    const hasSubtitle = Math.random() > 0.3;
-    const hasDiscount = Math.random() > 0.4;
-    const hasRating = Math.random() > 0.2;
-    const hasTag = Math.random() > 0.5;
+    // Determine if this is the longest item (has all features: subtitle, tag, rating, discount)
+    const isLongestItem = i === longestItemIndex;
+    
+    // For longest item: always include all features
+    // For other items: smaller height (randomly exclude features)
+    const hasSubtitle = isLongestItem ? true : (i < 5 ? false : Math.random() > 0.3);
+    const hasTag = isLongestItem ? true : (i < 5 ? false : Math.random() > 0.5);
+    const hasRating = isLongestItem ? true : (i < 5 ? false : Math.random() > 0.2);
+    const hasDiscount = isLongestItem ? true : (Math.random() > 0.4);
     
     const mrp = Math.floor(Math.random() * 5000) + 500; // 500-5500
     const discount = hasDiscount ? Math.floor(Math.random() * 50) + 10 : undefined; // 10-60%
@@ -75,7 +113,7 @@ export const generateMockProducts = (count: number): ProductCard[] => {
     });
   }
   
-  console.log('📦 Generated mock products:', products.length, 'items');
+  console.log(`📦 Generated mock products: ${products.length} items, longest item at index ${longestItemIndex}`);
   
   return products;
 };

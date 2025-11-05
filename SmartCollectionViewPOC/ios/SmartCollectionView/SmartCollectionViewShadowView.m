@@ -2,6 +2,11 @@
 #import <React/RCTLog.h>
 #import <React/RCTShadowView+Layout.h>
 #import "SmartCollectionViewLocalData.h"
+#import "SmartCollectionViewManager.h"
+#import "SmartCollectionView.h"
+#import <React/RCTBridge.h>
+#import <React/RCTBridge+Private.h>
+#import <React/RCTUIManager.h>
 #import <yoga/Yoga.h>
 
 #ifdef DEBUG
@@ -156,11 +161,52 @@
         SCVShadowLog(@"First item tag %@ size %@", first.reactTag, NSStringFromCGSize(first.size));
     }
 
-    // BREAKPOINT: Set breakpoint here - right before calling setLocalData
-    // This should trigger manager's setLocalData:forView: if linkage is working
-    SCVShadowLog(@"🔥 About to call [self setLocalData:] - this should route to manager's setLocalData:forView:");
-    [self setLocalData:localData];
-    SCVShadowLog(@"🔥 Finished calling [self setLocalData:]");
+    // Instead of calling [self setLocalData:] which doesn't route to manager,
+    // we'll access the manager directly via bridge and call its method
+    SCVShadowLog(@"🔥 Publishing local data - attempting to route to native view via manager");
+    
+    // Get bridge to access manager
+    RCTBridge *bridge = [RCTBridge currentBridge];
+    if (!bridge) {
+        SCVShadowLog(@"❌ ERROR: No current bridge available");
+        _needsLayoutUpdate = NO;
+        return;
+    }
+    
+    // Get manager instance
+    SmartCollectionViewManager *manager = [bridge moduleForClass:[SmartCollectionViewManager class]];
+    if (!manager) {
+        SCVShadowLog(@"❌ ERROR: Could not retrieve SmartCollectionViewManager from bridge");
+        _needsLayoutUpdate = NO;
+        return;
+    }
+    
+    // Get UIManager to find native view by reactTag
+    RCTUIManager *uiManager = bridge.uiManager;
+    if (!uiManager) {
+        SCVShadowLog(@"❌ ERROR: Could not retrieve UIManager from bridge");
+        _needsLayoutUpdate = NO;
+        return;
+    }
+    
+    // Get native view by reactTag (on main queue)
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIView *nativeView = [uiManager viewForReactTag:self.reactTag];
+        if (!nativeView) {
+            SCVShadowLog(@"❌ ERROR: Could not find native view for reactTag %@", self.reactTag);
+            return;
+        }
+        
+        if (![nativeView isKindOfClass:[SmartCollectionView class]]) {
+            SCVShadowLog(@"❌ ERROR: Native view is not SmartCollectionView, got: %@", NSStringFromClass([nativeView class]));
+            return;
+        }
+        
+        SCVShadowLog(@"✅ Found native view %@ for reactTag %@, calling manager.setLocalData:forView:", nativeView, self.reactTag);
+        // Call manager's method directly - it will forward to native view's updateWithLocalData:
+        [manager setLocalData:localData forView:(SmartCollectionView *)nativeView];
+    });
+    
     _needsLayoutUpdate = NO;
 }
 

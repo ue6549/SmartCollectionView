@@ -2,8 +2,10 @@
 #import <React/RCTLog.h>
 #import <React/RCTUIManager.h>
 #import <React/RCTBridge.h>
+#import <React/RCTBridge+Private.h>
 #import <React/UIView+React.h>
 #import <React/RCTShadowView.h>
+#import <yoga/Yoga.h>
 #import "SmartCollectionViewLocalData.h"
 #import "SmartCollectionViewWrapperView.h"
 #import "SmartCollectionViewShadowView.h"
@@ -22,6 +24,7 @@
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, SmartCollectionViewWrapperView *> *indexToWrapper;
 @property (nonatomic, strong) NSMutableArray<SmartCollectionViewWrapperView *> *wrapperReusePool;
 @property (nonatomic, strong) NSMutableSet<NSNumber *> *renderedIndices; // Track which indices JS has rendered
+@property (nonatomic, assign) BOOL isUpdatingVisibleItems;
 
 - (NSInteger)itemCount;
 - (CGSize)sizeForItemAtIndex:(NSInteger)index;
@@ -133,9 +136,14 @@
     // Update scroll view frame
     _scrollView.frame = self.bounds;
     
-    // Recompute layout if bounds changed
-    if ([self itemCount] > 0 && _needsFullRecompute) {
-        [self recomputeLayout];
+    // Recompute layout if we have data and need it
+    // This handles both initial layout and when bounds become available after being zero
+    if ([self itemCount] > 0 && self.localData && self.localData.items.count > 0) {
+        if (_needsFullRecompute || CGSizeEqualToSize(_scrollView.contentSize, CGSizeZero)) {
+            SCVLog(@"Triggering layout recompute - needsFullRecompute: %@, contentSize: %@", 
+                   _needsFullRecompute ? @"YES" : @"NO", NSStringFromCGSize(_scrollView.contentSize));
+            [self recomputeLayout];
+        }
     }
     
     // Request items if needed after layout
@@ -160,7 +168,9 @@
         SCVLog(@"Added virtual item at index %ld, total items: %ld", (long)index, (long)_virtualItems.count);
         SCVLog(@"Child tag %@ initial frame %@", item.reactTag, NSStringFromCGRect(item.frame));
         
-        [self recomputeLayout];
+        // DON'T call recomputeLayout here - wait for updateWithLocalData to provide complete metadata
+        // Layout will be triggered when localData arrives with all item sizes
+        // This prevents multiple layout recomputes with incomplete data
     }
 }
 
@@ -196,6 +206,22 @@
     }
     
     [self addVirtualItem:view atIndex:index];
+    
+    // After adding a new item, check if we should trigger layout and mounting
+    // This handles the case where items arrive after scroll (requested via onRequestItems)
+    // Throttle: Only trigger update if we don't have a pending update
+    if (self.localData && self.localData.items.count > 0 && !self.isUpdatingVisibleItems) {
+        // Local data exists, so layout should be possible
+        // Trigger update to check if we can now mount items that were waiting
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // Check if this item is in the current visible/mount range
+            NSRange currentRange = [self computeRangeToLayout];
+            if (index >= currentRange.location && index < NSMaxRange(currentRange)) {
+                SCVLog(@"New item %ld is in current mount range %@ - triggering update", (long)index, NSStringFromRange(currentRange));
+                [self updateVisibleItems];
+            }
+        });
+    }
 }
 
 - (void)unregisterChildView:(UIView *)view
@@ -207,6 +233,8 @@
 {
     // BREAKPOINT: Set breakpoint here - this confirms localData arrived from manager
     SCVLog(@"🔥🔥🔥 updateWithLocalData CALLED - version %ld, items %lu, my tag: %@", (long)localData.version, (unsigned long)localData.items.count, self.reactTag);
+    
+    // Ensure we're on main queue (manager may call from shadow thread)
     dispatch_async(dispatch_get_main_queue(), ^{
         self.localData = localData;
         SCVLog(@"✅ Received local data version %ld, items %lu", (long)localData.version, (unsigned long)localData.items.count);
@@ -228,7 +256,15 @@
         }
         
         self->_needsFullRecompute = YES;
-        [self recomputeLayout];
+        
+        // Force layout recompute - handle zero bounds case
+        if (CGRectEqualToRect(self.bounds, CGRectZero)) {
+            SCVLog(@"⚠️  Bounds are zero, will recompute when bounds are set");
+            // Layout will be triggered when bounds are set in layoutSubviews
+        } else {
+            // Bounds are available, compute layout immediately
+            [self recomputeLayout];
+        }
     });
 }
 
@@ -344,6 +380,13 @@
         return;
     }
     
+    // If bounds are zero, use estimated sizes but still compute layout
+    // This allows initial layout to happen even before bounds are set
+    BOOL usingEstimatedBounds = CGRectEqualToRect(self.bounds, CGRectZero);
+    if (usingEstimatedBounds) {
+        SCVLog(@"⚠️  Bounds are zero, using estimated item sizes for initial layout calculation");
+    }
+    
     // CURRENTLY: Horizontal list/grid layout only
     // TODO: When adding vertical list or grid layouts, refactor into separate methods:
     //   - performHorizontalLayoutRecompute (current implementation)
@@ -382,14 +425,26 @@
         CGSize itemSize = [self sizeForItemAtIndex:i];
         [actualSizes addObject:[NSValue valueWithCGSize:itemSize]];
         
+        // If we have an actual mounted item, use its real size instead of metadata/estimated
+        if (i < _virtualItems.count) {
+            UIView *item = _virtualItems[i];
+            CGSize actualSize = [self actualSizeForItem:item];
+            if (!CGSizeEqualToSize(actualSize, CGSizeZero) && actualSize.height > itemSize.height) {
+                // Use the larger actual size if available
+                itemSize = actualSize;
+                actualSizes[i] = [NSValue valueWithCGSize:itemSize];
+                SCVLog(@"Using actual mounted item size %@ instead of metadata/estimated for index %ld", NSStringFromCGSize(actualSize), (long)i);
+            }
+        }
+        
         if (itemSize.height > maxHeight) {
             maxHeight = itemSize.height;
         }
         
-        SCVLog(@"Measured item %ld actual size %@", (long)i, NSStringFromCGSize(itemSize));
+        SCVLog(@"Measured item %ld size %@ (maxHeight so far: %.2f)", (long)i, NSStringFromCGSize(itemSize), maxHeight);
     }
     
-    SCVLog(@"Max height calculated: %.2f", maxHeight);
+    SCVLog(@"Max height calculated: %.2f (from %ld items)", maxHeight, (long)itemCount);
     
     // Second pass: calculate frames with actual sizes (horizontal layout)
     CGFloat currentOffset = 0;
@@ -416,9 +471,18 @@
     _containerView.frame = CGRectMake(0, 0, _contentSize.width, _contentSize.height);
     
     // Update SmartCollectionView height to match max item height
-    CGRect newFrame = self.frame;
-    newFrame.size.height = maxHeight;
-    self.frame = newFrame;
+    // Note: If height is explicitly set via style props, React Native will override this
+    // Setting frame height here is safe - it will be overridden by Yoga layout if needed
+    // Store current height to detect changes
+    CGFloat previousHeight = self.frame.size.height;
+    if (maxHeight > 0) {
+        if (maxHeight != previousHeight) {
+            CGRect newFrame = self.frame;
+            newFrame.size.height = maxHeight;
+            self.frame = newFrame;
+            SCVLog(@"Updated SCV frame height: %.2f -> %.2f", previousHeight, maxHeight);
+        }
+    }
     
     SCVLog(@"Updated scrollView.contentSize %@", NSStringFromCGSize(_contentSize));
     SCVLog(@"Updated SCV frame %@", NSStringFromCGRect(self.frame));
@@ -505,18 +569,42 @@
     NSRange visibleRange = [self visibleItemRange];
     
     // Expand by overscanCount or overscanLength (horizontal layout)
+    // Priority: overscanLength takes precedence if > 0
     NSInteger buffer = _overscanCount;
     if (_overscanLength > 0) {
         CGFloat viewportWidth = self.bounds.size.width;
         CGFloat averageItemWidth = _estimatedItemSize.width;
-        buffer = (NSInteger)(_overscanLength * viewportWidth / averageItemWidth);
+        if (averageItemWidth > 0) {  // Guard against division by zero
+            buffer = (NSInteger)(_overscanLength * viewportWidth / averageItemWidth);
+            // Clamp buffer to reasonable range to prevent overflow/underflow issues
+            buffer = MAX(0, MIN(buffer, 100));  // Max 100 items buffer
+        }
     }
     
     NSInteger itemCount = [self itemCount];
-    NSInteger start = MAX(0, visibleRange.location - buffer);
-    NSInteger end = MIN(itemCount, NSMaxRange(visibleRange) + buffer);
     
-    return NSMakeRange(start, end - start);
+    // Calculate start safely - prevent integer underflow
+    // Use explicit cast and check to avoid negative values wrapping
+    NSInteger visibleStart = (NSInteger)visibleRange.location;
+    NSInteger calculatedStart = visibleStart - buffer;
+    NSInteger start = MAX(0, calculatedStart);  // Clamp to 0 minimum
+    
+    // Calculate end safely
+    NSInteger visibleEnd = NSMaxRange(visibleRange);
+    NSInteger calculatedEnd = visibleEnd + buffer;
+    NSInteger end = MIN(itemCount, calculatedEnd);
+    
+    // Safety check: ensure start <= end (should never happen, but defensive)
+    if (start > end) {
+        SCVLog(@"⚠️  WARNING: computeRangeToLayout calculated invalid range: start=%ld > end=%ld, using visible range", (long)start, (long)end);
+        start = MAX(0, visibleStart);
+        end = MIN(itemCount, visibleEnd);
+    }
+    
+    NSRange result = NSMakeRange(start, end - start);
+    SCVLog(@"computeRangeToLayout: visibleRange=%@, buffer=%ld, result=%@", NSStringFromRange(visibleRange), (long)buffer, NSStringFromRange(result));
+    
+    return result;
 }
 
 - (CGSize)estimatedSizeForItemAtIndex:(NSInteger)index
@@ -526,18 +614,67 @@
 
 - (void)mountVisibleItemsWithBatching
 {
-    NSRange rangeToMount = [self computeRangeToLayout];
-    NSMutableArray *itemsToMount = [NSMutableArray array];
-    
-    for (NSInteger i = rangeToMount.location; i < NSMaxRange(rangeToMount); i++) {
-        if (![_mountedIndices containsObject:@(i)]) {
-            [itemsToMount addObject:@(i)];
-        } else {
-            SCVLog(@"Index %ld already mounted", (long)i);
-        }
+    // Ensure layout has run before attempting to mount
+    // If layout cache is empty and we have data, layout needs to run first
+    if (_layoutCache.count == 0 && self.localData && self.localData.items.count > 0 && _needsFullRecompute) {
+        SCVLog(@"⚠️  Layout cache is empty but we have data - running layout first before mounting");
+        [self performFullLayoutRecompute];
+        _needsFullRecompute = NO;
     }
     
-    [self mountItemsBatched:itemsToMount batchSize:_maxToRenderPerBatch];
+    NSRange rangeToMount = [self computeRangeToLayout];
+    
+    // For initial render, mount all items that React Native rendered (up to initialNumToRender)
+    // This ensures we mount items even if they're not yet in the visible range
+    // After initial render, we only mount items in the visible range + overscan
+    BOOL isInitialRender = (_mountedIndices.count == 0 && _initialNumToRender > 0);
+    
+    if (isInitialRender) {
+        // Mount all initially rendered items (up to initialNumToRender or itemCount, whichever is smaller)
+        // But only if we have layout data (frames in cache)
+        NSInteger itemsToMount = MIN(_initialNumToRender, [self itemCount]);
+        NSMutableArray *itemsToMountArray = [NSMutableArray array];
+        
+        for (NSInteger i = 0; i < itemsToMount; i++) {
+            // Only add items that have frames in cache (layout has run) and views available
+            if (![_mountedIndices containsObject:@(i)]) {
+                NSValue *frameValue = _layoutCache[@(i)];
+                UIView *view = [self viewForItemAtIndex:i];
+                if (frameValue && view) {
+                    [itemsToMountArray addObject:@(i)];
+                } else {
+                    SCVLog(@"Skipping initial mount of index %ld - frame: %@, view: %@", 
+                           (long)i, frameValue ? @"exists" : @"missing", view ? @"exists" : @"missing");
+                }
+            }
+        }
+        
+        SCVLog(@"Initial render: mounting %ld items (initialNumToRender=%ld, available=%ld)", 
+               (long)itemsToMountArray.count, (long)_initialNumToRender, (long)itemsToMount);
+        if (itemsToMountArray.count > 0) {
+            [self mountItemsBatched:itemsToMountArray batchSize:_maxToRenderPerBatch];
+        } else {
+            SCVLog(@"⚠️  No items ready for initial mount - layout may need to run first");
+        }
+    } else {
+        // Normal operation: mount items in visible range + overscan
+        NSMutableArray *itemsToMount = [NSMutableArray array];
+        
+        for (NSInteger i = rangeToMount.location; i < NSMaxRange(rangeToMount); i++) {
+            if (![_mountedIndices containsObject:@(i)]) {
+                // Only mount if we have frame and view
+                NSValue *frameValue = _layoutCache[@(i)];
+                UIView *view = [self viewForItemAtIndex:i];
+                if (frameValue && view) {
+                    [itemsToMount addObject:@(i)];
+                }
+            } else {
+                SCVLog(@"Index %ld already mounted", (long)i);
+            }
+        }
+        
+        [self mountItemsBatched:itemsToMount batchSize:_maxToRenderPerBatch];
+    }
 }
 
 - (void)mountItemsBatched:(NSArray *)items batchSize:(NSInteger)size
@@ -562,50 +699,106 @@
 - (void)mountItemAtIndex:(NSInteger)index
 {
     if (index < 0) {
+        SCVLog(@"❌ mountItemAtIndex: Invalid index %ld", (long)index);
         return;
     }
 
     UIView *item = [self viewForItemAtIndex:index];
-    if (item) {
-        NSValue *frameValue = _layoutCache[@(index)];
-        
-        if (frameValue) {
-            CGRect frame = [frameValue CGRectValue];
-            SCVLog(@"Mounting index %ld frame %@ metadata %@", (long)index, NSStringFromCGRect(frame), NSStringFromCGSize([self metadataSizeForItemAtIndex:index]));
-            SCVLog(@"Wrapper will be at frame x=%.2f y=%.2f w=%.2f h=%.2f", frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
+    if (!item) {
+        SCVLog(@"❌ mountItemAtIndex: No view available for index %ld", (long)index);
+        return;
+    }
+    
+    NSValue *frameValue = _layoutCache[@(index)];
+    if (!frameValue) {
+        SCVLog(@"❌ mountItemAtIndex: No frame in cache for index %ld", (long)index);
+        return;
+    }
+    
+    CGRect frame = [frameValue CGRectValue];
+    if (CGRectIsEmpty(frame) || CGRectIsNull(frame)) {
+        SCVLog(@"❌ mountItemAtIndex: Invalid frame %@ for index %ld", NSStringFromCGRect(frame), (long)index);
+        return;
+    }
+    
+    SCVLog(@"🔵 mountItemAtIndex: %ld - frame: %@, item tag: %@", (long)index, NSStringFromCGRect(frame), item.reactTag);
 
-            SmartCollectionViewWrapperView *wrapper = _indexToWrapper[@(index)];
-            if (!wrapper) {
-                wrapper = [self dequeueWrapper];
-                _indexToWrapper[@(index)] = wrapper;
-            }
-
-            wrapper.reactTag = item.reactTag;
-            wrapper.frame = frame;
-
-            if (wrapper.superview != _containerView) {
-                [_containerView addSubview:wrapper];
-                SCVLog(@"Added wrapper to containerView, containerView frame: %@", NSStringFromCGRect(_containerView.frame));
-            }
-
-            if (item.superview != wrapper) {
-                [item removeFromSuperview];
-                item.frame = wrapper.bounds;
-                item.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-                [wrapper addSubview:item];
-                SCVLog(@"Added React child to wrapper, child frame: %@", NSStringFromCGRect(item.frame));
-            } else {
-                item.frame = wrapper.bounds;
-            }
-
-            SCVLog(@"Mounted item %ld - wrapper frame: %@, wrapper in hierarchy: %@", 
-                   (long)index, NSStringFromCGRect(wrapper.frame), wrapper.superview ? @"YES" : @"NO");
-            [_mountedIndices addObject:@(index)];
-        } else {
-            SCVLog(@"No frame found for index %ld", (long)index);
+    SmartCollectionViewWrapperView *wrapper = _indexToWrapper[@(index)];
+    if (!wrapper) {
+        wrapper = [self dequeueWrapper];
+        if (!wrapper) {
+            SCVLog(@"❌ mountItemAtIndex: Failed to get wrapper for index %ld", (long)index);
+            return;
         }
+        _indexToWrapper[@(index)] = wrapper;
+        SCVLog(@"Created new wrapper for index %ld", (long)index);
     } else {
-        SCVLog(@"No view available to mount index %ld", (long)index);
+        SCVLog(@"Reusing existing wrapper for index %ld", (long)index);
+    }
+
+    wrapper.reactTag = item.reactTag;
+    wrapper.frame = frame;
+
+    if (wrapper.superview != _containerView) {
+        SCVLog(@"Adding wrapper to containerView (index %ld)", (long)index);
+        [_containerView addSubview:wrapper];
+        SCVLog(@"ContainerView frame: %@, subviews count: %lu", NSStringFromCGRect(_containerView.frame), (unsigned long)_containerView.subviews.count);
+    }
+
+    if (item.superview != wrapper) {
+        if (item.superview) {
+            SCVLog(@"Removing item from old superview: %@", item.superview);
+            [item removeFromSuperview];
+        }
+        item.frame = wrapper.bounds;
+        item.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [wrapper addSubview:item];
+        [item setNeedsLayout];
+        [item layoutIfNeeded];
+        SCVLog(@"✅ Added React child to wrapper, child frame: %@, wrapper bounds: %@", NSStringFromCGRect(item.frame), NSStringFromCGRect(wrapper.bounds));
+    } else {
+        item.frame = wrapper.bounds;
+        [item setNeedsLayout];
+        [item layoutIfNeeded];
+        SCVLog(@"✅ Updated React child frame for reused wrapper");
+    }
+
+    if (![_mountedIndices containsObject:@(index)]) {
+        [_mountedIndices addObject:@(index)];
+        SCVLog(@"✅ Successfully mounted item %ld - wrapper: %@, in hierarchy: %@, mounted count: %lu", 
+               (long)index, NSStringFromCGRect(wrapper.frame), wrapper.superview ? @"YES" : @"NO", (unsigned long)_mountedIndices.count);
+    } else {
+        SCVLog(@"⚠️  Item %ld already in mountedIndices, skipping add", (long)index);
+    }
+    
+    // Verify wrapper is actually in the hierarchy
+    if (wrapper.superview != _containerView) {
+        SCVLog(@"⚠️  Wrapper for index %ld not in containerView! Re-adding...", (long)index);
+        [_containerView addSubview:wrapper];
+    }
+    
+    // Verify item is in wrapper
+    if (item.superview != wrapper) {
+        SCVLog(@"⚠️  Item for index %ld not in wrapper! Re-adding...", (long)index);
+        [item removeFromSuperview];
+        item.frame = wrapper.bounds;
+        item.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [wrapper addSubview:item];
+        [item setNeedsLayout];
+        [item layoutIfNeeded];
+    }
+    
+    // After mounting, check if this item's height is larger than current maxHeight
+    // If so, trigger height recalculation
+    CGSize itemSize = item.frame.size;
+    if (itemSize.height > 0 && itemSize.height > self.frame.size.height) {
+        SCVLog(@"⚠️  Mounted item %ld has height %.2f > current SCV height %.2f, triggering height recalculation", 
+               (long)index, itemSize.height, self.frame.size.height);
+        _needsFullRecompute = YES;
+        // Trigger layout recompute on next run loop to avoid recursion
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self recomputeLayout];
+        });
     }
 }
 
@@ -883,6 +1076,13 @@
     
     // Horizontal layout: use viewport width and horizontal scroll offset
     CGFloat viewportWidth = self.bounds.size.width;
+    
+    // If bounds are zero, assume first few items are visible (for initial mount)
+    if (viewportWidth == 0) {
+        SCVLog(@"⚠️  Viewport width is zero, returning initial visible range [0, %ld]", (long)MIN(5, [self itemCount]));
+        return NSMakeRange(0, MIN(5, [self itemCount]));
+    }
+    
     CGFloat startOffset = _scrollOffset;
     CGFloat endOffset = startOffset + viewportWidth;
     
@@ -921,41 +1121,146 @@
 
 - (void)updateVisibleItems
 {
+    // Prevent re-entrant calls
+    if (self.isUpdatingVisibleItems) {
+        SCVLog(@"⚠️  updateVisibleItems already in progress, skipping");
+        return;
+    }
+    
+    self.isUpdatingVisibleItems = YES;
+    
     NSRange visibleRange = [self visibleItemRange];
     NSRange rangeToMount = [self computeRangeToLayout];
     
     SCVLog(@"Visible range %@, rangeToMount %@", NSStringFromRange(visibleRange), NSStringFromRange(rangeToMount));
     
-    // Unmount items outside the range
-    NSMutableSet *indicesToUnmount = [NSMutableSet setWithSet:_mountedIndices];
+    // First, check which items in rangeToMount actually have views available
+    NSMutableSet *itemsReadyToMount = [NSMutableSet set];
+    NSMutableSet *itemsNotReady = [NSMutableSet set];
+    
     for (NSInteger i = rangeToMount.location; i < NSMaxRange(rangeToMount); i++) {
-        [indicesToUnmount removeObject:@(i)];
+        UIView *view = [self viewForItemAtIndex:i];
+        NSValue *frameValue = _layoutCache[@(i)];
+        if (view && frameValue) {
+            [itemsReadyToMount addObject:@(i)];
+        } else {
+            [itemsNotReady addObject:@(i)];
+            SCVLog(@"Item %ld not ready: view=%@, frame=%@", (long)i, view ? @"YES" : @"NO", frameValue ? @"YES" : @"NO");
+        }
     }
     
+    // Only unmount items if we have replacements ready, OR if they're far outside the visible range
+    // Use a larger unmount threshold to prevent premature unmounting
+    NSRange unmountRange = [self expandRangeWithOverscan:visibleRange];
+    NSInteger unmountThreshold = _overscanCount * 2; // Items beyond 2x overscan are safe to unmount
+    
+    NSMutableSet *indicesToUnmount = [NSMutableSet set];
+    for (NSNumber *mountedIndex in _mountedIndices) {
+        NSInteger index = [mountedIndex integerValue];
+        
+        // Unmount if:
+        // 1. Item is outside the unmount range (far from visible)
+        // 2. OR item is outside rangeToMount AND we have at least one replacement ready
+        BOOL isFarOutsideVisible = (index < unmountRange.location - unmountThreshold || 
+                                   index >= NSMaxRange(unmountRange) + unmountThreshold);
+        BOOL hasReplacementReady = (itemsReadyToMount.count > 0 && index < rangeToMount.location);
+        
+        if (isFarOutsideVisible || (hasReplacementReady && index < rangeToMount.location)) {
+            [indicesToUnmount addObject:mountedIndex];
+        } else if (index >= NSMaxRange(rangeToMount) && itemsReadyToMount.count > 0) {
+            // Also unmount items beyond rangeToMount if we have replacements
+            [indicesToUnmount addObject:mountedIndex];
+        }
+    }
+    
+    SCVLog(@"Unmounting %lu items: %@", (unsigned long)indicesToUnmount.count, indicesToUnmount);
     for (NSNumber *indexNum in indicesToUnmount) {
         [self unmountItemAtIndex:[indexNum integerValue]];
     }
     
-    // Mount items in the range
-    for (NSInteger i = rangeToMount.location; i < NSMaxRange(rangeToMount); i++) {
-        NSNumber *indexNumber = @(i);
+    // Mount items that are ready
+    SCVLog(@"Mounting %lu ready items: %@", (unsigned long)itemsReadyToMount.count, itemsReadyToMount);
+    SCVLog(@"Currently mounted indices: %@", _mountedIndices);
+    
+    NSInteger mountedCount = 0;
+    NSInteger updatedCount = 0;
+    NSInteger newMountCount = 0;
+    
+    for (NSNumber *indexNumber in itemsReadyToMount) {
+        NSInteger i = [indexNumber integerValue];
         NSValue *frameValue = _layoutCache[indexNumber];
         CGRect frame = frameValue ? [frameValue CGRectValue] : CGRectZero;
 
         if ([_mountedIndices containsObject:indexNumber]) {
+            // Item already mounted - verify it's still in hierarchy and update if needed
             SmartCollectionViewWrapperView *wrapper = _indexToWrapper[indexNumber];
-            if (wrapper && !CGRectEqualToRect(wrapper.frame, frame) && !CGRectEqualToRect(frame, CGRectZero)) {
-                SCVLog(@"Updating mounted wrapper for index %ld to frame %@", (long)i, NSStringFromCGRect(frame));
-                wrapper.frame = frame;
+            if (!wrapper) {
+                SCVLog(@"⚠️  Item %ld marked as mounted but no wrapper found! Re-mounting", (long)i);
+                [_mountedIndices removeObject:indexNumber];
+                [self mountItemAtIndex:i];
+                newMountCount++;
+            } else {
+                // Verify wrapper is in containerView
+                if (wrapper.superview != _containerView) {
+                    SCVLog(@"⚠️  Item %ld wrapper not in containerView! Re-adding...", (long)i);
+                    [_containerView addSubview:wrapper];
+                    updatedCount++;
+                }
+                
+                // Get the actual item view for this index
+                UIView *item = [self viewForItemAtIndex:i];
+                
+                // Verify item is in wrapper
                 UIView *child = wrapper.subviews.firstObject;
-                if (child) {
-                    child.frame = wrapper.bounds;
+                if (!child || (item && child != item)) {
+                    SCVLog(@"⚠️  Item %ld child not in wrapper! Re-adding...", (long)i);
+                    if (item) {
+                        if (item.superview) {
+                            [item removeFromSuperview];
+                        }
+                        item.frame = wrapper.bounds;
+                        item.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                        [wrapper addSubview:item];
+                        [item setNeedsLayout];
+                        [item layoutIfNeeded];
+                        updatedCount++;
+                    } else {
+                        SCVLog(@"⚠️  Item %ld view not found for verification!", (long)i);
+                    }
+                }
+                
+                // Update frame if needed
+                if (!CGRectEqualToRect(wrapper.frame, frame) && !CGRectEqualToRect(frame, CGRectZero)) {
+                    SCVLog(@"Updating mounted wrapper for index %ld: %@ -> %@", (long)i, NSStringFromCGRect(wrapper.frame), NSStringFromCGRect(frame));
+                    wrapper.frame = frame;
+                    if (child) {
+                        child.frame = wrapper.bounds;
+                        [child setNeedsLayout];
+                        [child layoutIfNeeded];
+                    }
+                    updatedCount++;
+                } else {
+                    SCVLog(@"Item %ld already mounted with correct frame %@", (long)i, NSStringFromCGRect(frame));
                 }
             }
+            mountedCount++;
         } else {
+            // Item not mounted yet - mount it
+            SCVLog(@"Mounting new item %ld", (long)i);
             [self mountItemAtIndex:i];
+            newMountCount++;
         }
     }
+    
+    SCVLog(@"Mount summary: %ld already mounted, %ld updated, %ld newly mounted", (long)mountedCount, (long)updatedCount, (long)newMountCount);
+    SCVLog(@"Final mounted indices: %@", _mountedIndices);
+    
+    // Log items that were requested but aren't ready yet
+    if (itemsNotReady.count > 0) {
+        SCVLog(@"⚠️  %lu items in rangeToMount but not ready yet: %@", (unsigned long)itemsNotReady.count, itemsNotReady);
+    }
+    
+    self.isUpdatingVisibleItems = NO;
 }
 
 - (SmartCollectionViewWrapperView *)dequeueWrapper
