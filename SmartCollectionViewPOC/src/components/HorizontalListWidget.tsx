@@ -40,7 +40,7 @@ const HorizontalListWidget: React.FC<HorizontalListWidgetProps> = ({
             initialNumToRender={4}
             maxToRenderPerBatch={2}
             overscanCount={1}
-            overscanLength={1}
+            overscanLength={0.5}
             estimatedItemSize={{width: screenWidth * 0.4 + 16, height: 200}}
           />
         </View>

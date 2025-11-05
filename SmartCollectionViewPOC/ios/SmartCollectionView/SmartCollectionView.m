@@ -630,12 +630,12 @@
     BOOL isInitialRender = (_mountedIndices.count == 0 && _initialNumToRender > 0);
     
     if (isInitialRender) {
-        // Mount all initially rendered items (up to initialNumToRender or itemCount, whichever is smaller)
-        // But only if we have layout data (frames in cache)
-        NSInteger itemsToMount = MIN(_initialNumToRender, [self itemCount]);
+        // For initial render, mount items in the visible range + overscan
+        // NOT all items up to initialNumToRender - that's only for JS rendering
+        // Native should only mount what's actually visible + overscan buffer
         NSMutableArray *itemsToMountArray = [NSMutableArray array];
         
-        for (NSInteger i = 0; i < itemsToMount; i++) {
+        for (NSInteger i = rangeToMount.location; i < NSMaxRange(rangeToMount); i++) {
             // Only add items that have frames in cache (layout has run) and views available
             if (![_mountedIndices containsObject:@(i)]) {
                 NSValue *frameValue = _layoutCache[@(i)];
@@ -649,8 +649,8 @@
             }
         }
         
-        SCVLog(@"Initial render: mounting %ld items (initialNumToRender=%ld, available=%ld)", 
-               (long)itemsToMountArray.count, (long)_initialNumToRender, (long)itemsToMount);
+        SCVLog(@"Initial render: mounting %ld items from rangeToMount %@ (initialNumToRender=%ld, total available=%ld)", 
+               (long)itemsToMountArray.count, NSStringFromRange(rangeToMount), (long)_initialNumToRender, (long)[self itemCount]);
         if (itemsToMountArray.count > 0) {
             [self mountItemsBatched:itemsToMountArray batchSize:_maxToRenderPerBatch];
         } else {
@@ -788,17 +788,45 @@
         [item layoutIfNeeded];
     }
     
-    // After mounting, check if this item's height is larger than current maxHeight
-    // If so, trigger height recalculation
-    CGSize itemSize = item.frame.size;
-    if (itemSize.height > 0 && itemSize.height > self.frame.size.height) {
-        SCVLog(@"⚠️  Mounted item %ld has height %.2f > current SCV height %.2f, triggering height recalculation", 
-               (long)index, itemSize.height, self.frame.size.height);
-        _needsFullRecompute = YES;
-        // Trigger layout recompute on next run loop to avoid recursion
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self recomputeLayout];
-        });
+    // After mounting and laying out, measure the actual item height
+    // This is important because the item's intrinsic content size might be larger than estimated
+    [item layoutIfNeeded]; // Ensure item is fully laid out
+    CGSize itemActualSize = item.frame.size;
+    
+    // Check if this item's actual height is larger than what we calculated
+    // If so, we need to recalculate layout with the new max height
+    if (itemActualSize.height > 0) {
+        // Get the current max height from our layout cache
+        CGFloat currentCalculatedMaxHeight = 0;
+        for (NSInteger i = 0; i < [self itemCount]; i++) {
+            NSValue *frameValue = _layoutCache[@(i)];
+            if (frameValue) {
+                CGRect frame = [frameValue CGRectValue];
+                if (frame.size.height > currentCalculatedMaxHeight) {
+                    currentCalculatedMaxHeight = frame.size.height;
+                }
+            }
+        }
+        
+        // If this item is taller than our calculated max, trigger full recompute
+        if (itemActualSize.height > currentCalculatedMaxHeight) {
+            SCVLog(@"⚠️  Mounted item %ld has actual height %.2f > calculated max %.2f, triggering height recalculation", 
+                   (long)index, itemActualSize.height, currentCalculatedMaxHeight);
+            
+            // Update the frame in cache with the actual measured size
+            NSValue *frameValue = _layoutCache[@(index)];
+            if (frameValue) {
+                CGRect frame = [frameValue CGRectValue];
+                frame.size.height = itemActualSize.height;
+                _layoutCache[@(index)] = [NSValue valueWithCGRect:frame];
+            }
+            
+            _needsFullRecompute = YES;
+            // Trigger layout recompute on next run loop to avoid recursion
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self recomputeLayout];
+            });
+        }
     }
 }
 
@@ -1103,18 +1131,65 @@
     startIndex = left;
     
     // Binary search for end index
+    // For an item to be visible, it must INTERSECT the viewport:
+    // - Item start < viewport end (endOffset) AND
+    // - Item end > viewport start (startOffset)
+    // We want to find the last item whose START is < endOffset (it could be partially visible)
     left = startIndex;
     right = [self itemCount] - 1;
     while (left <= right) {
         NSInteger mid = (left + right) / 2;
-        CGFloat offset = [self getCumulativeOffsetAtIndex:mid];
-        if (offset <= endOffset) {
+        CGFloat itemStart = [self getCumulativeOffsetAtIndex:mid];
+        
+        // Check if item's START is within viewport end
+        if (itemStart < endOffset) {
+            // This item starts before viewport end, so it could be visible
+            // Move right to find the last such item
             left = mid + 1;
         } else {
+            // Item starts at or after viewport end, look earlier
             right = mid - 1;
         }
     }
     endIndex = left;
+    
+    // Binary search found the last item whose START is < endOffset
+    // But we need to verify that items actually intersect (itemEnd > startOffset)
+    // Use binary search again to find the last item that actually intersects
+    if (endIndex > startIndex) {
+        // Binary search for the last item that intersects
+        NSInteger intersectLeft = startIndex;
+        NSInteger intersectRight = endIndex - 1; // Last candidate from first search
+        NSInteger lastIntersectingIndex = startIndex - 1;
+        
+        while (intersectLeft <= intersectRight) {
+            NSInteger mid = (intersectLeft + intersectRight) / 2;
+            CGFloat itemStart = [self getCumulativeOffsetAtIndex:mid];
+            CGSize itemSize = [self sizeForItemAtIndex:mid];
+            CGFloat itemEnd = itemStart + itemSize.width;
+            
+            // Item intersects if itemEnd > startOffset (itemStart < endOffset already known)
+            if (itemEnd > startOffset) {
+                // This item intersects, check if there are more
+                lastIntersectingIndex = mid;
+                intersectLeft = mid + 1;
+            } else {
+                // This item doesn't intersect, look earlier
+                intersectRight = mid - 1;
+            }
+        }
+        
+        // If we found intersecting items, endIndex should be lastIntersectingIndex + 1
+        if (lastIntersectingIndex >= startIndex) {
+            endIndex = lastIntersectingIndex + 1;
+        } else {
+            // No items intersect (shouldn't happen if startIndex is correct)
+            endIndex = startIndex;
+        }
+    }
+    
+    SCVLog(@"visibleItemRange: startOffset=%.2f, endOffset=%.2f, startIndex=%ld, endIndex=%ld, range length=%ld", 
+           startOffset, endOffset, (long)startIndex, (long)endIndex, (long)(endIndex - startIndex));
     
     return NSMakeRange(startIndex, endIndex - startIndex);
 }

@@ -69,7 +69,17 @@
     [_mutableChildShadowViews insertObject:subview atIndex:index];
 
     _needsLayoutUpdate = YES;
+    
+    // Mark ourselves as dirty to trigger layout recalculation when new children are added
     [self dirtyLayout];
+    
+    // Also mark parent to ensure layout cascade happens
+    if (self.superview) {
+        [self.superview dirtyLayout];
+    }
+    
+    SCVShadowLog(@"Marked shadow view as dirty after adding child at index %ld (total children: %lu)", 
+                 (long)index, (unsigned long)_mutableChildShadowViews.count);
 }
 
 - (void)removeReactSubview:(RCTShadowView *)subview
@@ -93,28 +103,64 @@
     // This allows us to measure children's actual sizes
     CGFloat newMaxHeight = [self calculateMaxItemHeight];
     
+    SCVShadowLog(@"layoutSubviewsWithContext: currentMaxHeight=%.2f, newMaxHeight=%.2f, children=%lu", 
+                 _currentMaxHeight, newMaxHeight, (unsigned long)_mutableChildShadowViews.count);
+    
+    // Check if we have children that haven't been laid out yet (zero height)
+    // If so, we might need another layout pass to get their real sizes
+    BOOL hasUnlaidOutChildren = NO;
+    for (RCTShadowView *childShadow in _mutableChildShadowViews) {
+        RCTLayoutMetrics metrics = childShadow.layoutMetrics;
+        CGSize size = metrics.frame.size;
+        if (CGSizeEqualToSize(size, CGSizeZero)) {
+            size = metrics.contentFrame.size;
+        }
+        if (CGSizeEqualToSize(size, CGSizeZero)) {
+            hasUnlaidOutChildren = YES;
+            break;
+        }
+    }
+    
     if (newMaxHeight > 0 && newMaxHeight != _currentMaxHeight) {
-        SCVShadowLog(@"Max height changed: %.2f -> %.2f, setting Yoga height", _currentMaxHeight, newMaxHeight);
+        SCVShadowLog(@"Max height changed: %.2f -> %.2f, setting height via property setter", _currentMaxHeight, newMaxHeight);
         _currentMaxHeight = newMaxHeight;
         
-        // Set height on Yoga node
-        YGNodeStyleSetHeight(self.yogaNode, newMaxHeight);
+        // Use property setter instead of direct Yoga API - this should handle dirty marking automatically
+        YGValue heightValue = {newMaxHeight, YGUnitPoint};
+        self.height = heightValue;
         
-        // Trigger layout update by marking parent as dirty (safe approach)
-        // This will cause React Native to recalculate layout for this subtree
+        SCVShadowLog(@"Set height property to %.2f, marking dirty to trigger relayout", newMaxHeight);
+        
+        // Mark ourselves as dirty to ensure our height change triggers a relayout
+        [self dirtyLayout];
+        
+        // Also mark parent as dirty to trigger parent layout update
         if (self.superview) {
             [self.superview dirtyLayout];
-            SCVShadowLog(@"Marked parent shadow view as dirty to trigger layout update");
+        }
+    } else if (hasUnlaidOutChildren && _currentMaxHeight > 0) {
+        // We have children that haven't been laid out yet, but we have a current height
+        // Mark as dirty to force another layout pass where children should have valid sizes
+        SCVShadowLog(@"⚠️  Has unlaid-out children, marking dirty to force another layout pass");
+        [self dirtyLayout];
+        if (self.superview) {
+            [self.superview dirtyLayout];
         }
     } else if (_currentMaxHeight == 0 && newMaxHeight == 0 && _estimatedItemSize.height > 0) {
         // Use estimated height if no children yet
         SCVShadowLog(@"Using estimated height: %.2f", _estimatedItemSize.height);
-        YGNodeStyleSetHeight(self.yogaNode, _estimatedItemSize.height);
+        YGValue heightValue = {_estimatedItemSize.height, YGUnitPoint};
+        self.height = heightValue;
+        
+        // Mark ourselves as dirty
+        [self dirtyLayout];
         
         // Trigger layout update for initial height
         if (self.superview) {
             [self.superview dirtyLayout];
         }
+    } else if (newMaxHeight == _currentMaxHeight && _currentMaxHeight > 0) {
+        SCVShadowLog(@"Height unchanged at %.2f", _currentMaxHeight);
     }
     
     [self updateLocalDataIfNeeded];
@@ -225,6 +271,7 @@
 - (CGFloat)calculateMaxItemHeight
 {
     CGFloat maxHeight = 0;
+    NSInteger itemsWithValidHeight = 0;
     
     // Iterate through child shadow views and find max height
     for (RCTShadowView *childShadow in _mutableChildShadowViews) {
@@ -236,14 +283,30 @@
             size = metrics.contentFrame.size;
         }
         
-        if (size.height > maxHeight) {
-            maxHeight = size.height;
+        if (size.height > 0) {
+            itemsWithValidHeight++;
+            if (size.height > maxHeight) {
+                maxHeight = size.height;
+            }
         }
     }
     
     // Fallback to estimated size if no children or all have zero height
     if (maxHeight == 0 && _estimatedItemSize.height > 0) {
         maxHeight = _estimatedItemSize.height;
+        SCVShadowLog(@"Using estimated height fallback: %.2f", maxHeight);
+    }
+    
+    SCVShadowLog(@"calculateMaxItemHeight: maxHeight=%.2f (from %lu children, %ld with valid height)", 
+                 maxHeight, (unsigned long)_mutableChildShadowViews.count, (long)itemsWithValidHeight);
+    
+    // If we have children but none have valid height yet, return 0
+    // This will trigger the "hasUnlaidOutChildren" check in layoutSubviewsWithContext
+    // which will mark as dirty and force another layout pass
+    if (_mutableChildShadowViews.count > 0 && itemsWithValidHeight == 0) {
+        SCVShadowLog(@"⚠️  All children have zero height (%lu children), returning 0 to trigger relayout check", 
+                     (unsigned long)_mutableChildShadowViews.count);
+        return 0; // Return 0 to trigger the unlaid-out children check
     }
     
     return maxHeight;
