@@ -18,10 +18,6 @@
 		9DDB2FB52EAE8F3F00D5E7F1 /* SmartCollectionViewManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DDB2FB22EAE8F3F00D5E7F1 /* SmartCollectionViewManager.m */; };
 		9DDB2FBD2EAEAD2600D5E7F1 /* HorizontalListLayoutProvider.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DDB2FB72EAEAD2600D5E7F1 /* HorizontalListLayoutProvider.m */; };
 		9DDB2FBE2EAEAD2600D5E7F1 /* SmartCollectionViewMountController.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DDB2FBA2EAEAD2600D5E7F1 /* SmartCollectionViewMountController.m */; };
-		9DDB30A12EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DDB30A02EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.m */; };
-		9DDB30A22EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DDB309F2EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.h */; };
-		9DDB30AA2EB6444300D5E7F1 /* SmartCollectionViewWrapperView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DDB30A82EB6444300D5E7F1 /* SmartCollectionViewWrapperView.m */; };
-		9DDB30AB2EB6444300D5E7F1 /* SmartCollectionViewWrapperView.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DDB30A72EB6444300D5E7F1 /* SmartCollectionViewWrapperView.h */; };
 		9DDB2FBF2EAEAD2600D5E7F1 /* SmartCollectionViewScheduler.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DDB2FBC2EAEAD2600D5E7F1 /* SmartCollectionViewScheduler.m */; };
 		9DDB2FC02EAEAD2600D5E7F1 /* SmartCollectionViewScheduler.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DDB2FBB2EAEAD2600D5E7F1 /* SmartCollectionViewScheduler.h */; };
 		9DDB2FC12EAEAD2600D5E7F1 /* SmartCollectionViewLayoutProvider.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DDB2FB82EAEAD2600D5E7F1 /* SmartCollectionViewLayoutProvider.h */; };
@@ -29,6 +25,9 @@
 		9DDB2FC32EAEAD2600D5E7F1 /* SmartCollectionViewMountController.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DDB2FB92EAEAD2600D5E7F1 /* SmartCollectionViewMountController.h */; };
 		9DDB2FC62EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DDB2FC52EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.m */; };
 		9DDB2FC72EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DDB2FC42EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.h */; };
+		9DDB30A12EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DDB30A02EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.m */; };
+		9DDB30AA2EB6444300D5E7F1 /* SmartCollectionViewWrapperView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DDB30A82EB6444300D5E7F1 /* SmartCollectionViewWrapperView.m */; };
+		9DDB30AB2EB6444300D5E7F1 /* SmartCollectionViewWrapperView.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DDB30A72EB6444300D5E7F1 /* SmartCollectionViewWrapperView.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,14 +66,14 @@
 		9DDB2FB82EAEAD2600D5E7F1 /* SmartCollectionViewLayoutProvider.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewLayoutProvider.h; sourceTree = "<group>"; };
 		9DDB2FB92EAEAD2600D5E7F1 /* SmartCollectionViewMountController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewMountController.h; sourceTree = "<group>"; };
 		9DDB2FBA2EAEAD2600D5E7F1 /* SmartCollectionViewMountController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewMountController.m; sourceTree = "<group>"; };
-		9DDB309F2EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewLocalData.h; sourceTree = "<group>"; };
-		9DDB30A02EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewLocalData.m; sourceTree = "<group>"; };
-		9DDB30A72EB6444300D5E7F1 /* SmartCollectionViewWrapperView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewWrapperView.h; sourceTree = "<group>"; };
-		9DDB30A82EB6444300D5E7F1 /* SmartCollectionViewWrapperView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewWrapperView.m; sourceTree = "<group>"; };
 		9DDB2FBB2EAEAD2600D5E7F1 /* SmartCollectionViewScheduler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewScheduler.h; sourceTree = "<group>"; };
 		9DDB2FBC2EAEAD2600D5E7F1 /* SmartCollectionViewScheduler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewScheduler.m; sourceTree = "<group>"; };
 		9DDB2FC42EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewShadowView.h; sourceTree = "<group>"; };
 		9DDB2FC52EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewShadowView.m; sourceTree = "<group>"; };
+		9DDB309F2EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewLocalData.h; sourceTree = "<group>"; };
+		9DDB30A02EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewLocalData.m; sourceTree = "<group>"; };
+		9DDB30A72EB6444300D5E7F1 /* SmartCollectionViewWrapperView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewWrapperView.h; sourceTree = "<group>"; };
+		9DDB30A82EB6444300D5E7F1 /* SmartCollectionViewWrapperView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewWrapperView.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -348,13 +347,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-SmartCollectionViewPOC/Pods-SmartCollectionViewPOC-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-SmartCollectionViewPOC/Pods-SmartCollectionViewPOC-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -413,13 +408,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-SmartCollectionViewPOC-SmartCollectionViewPOCTests/Pods-SmartCollectionViewPOC-SmartCollectionViewPOCTests-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-SmartCollectionViewPOC-SmartCollectionViewPOCTests/Pods-SmartCollectionViewPOC-SmartCollectionViewPOCTests-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -434,13 +425,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-SmartCollectionViewPOC/Pods-SmartCollectionViewPOC-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-SmartCollectionViewPOC/Pods-SmartCollectionViewPOC-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -455,13 +442,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-SmartCollectionViewPOC-SmartCollectionViewPOCTests/Pods-SmartCollectionViewPOC-SmartCollectionViewPOCTests-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-SmartCollectionViewPOC-SmartCollectionViewPOCTests/Pods-SmartCollectionViewPOC-SmartCollectionViewPOCTests-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -503,16 +486,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				9DDB2FB42EAE8F3F00D5E7F1 /* SmartCollectionView.m in Sources */,
-                9DDB2FC62EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.m in Sources */,
-                9DDB30A12EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.m in Sources */,
-                9DDB2FB52EAE8F3F00D5E7F1 /* SmartCollectionViewManager.m in Sources */,
-                9DDB30AA2EB6444300D5E7F1 /* SmartCollectionViewWrapperView.m in Sources */,
-                13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
-                13B07FC11A68108700A75B9A /* main.m in Sources */,
-                9DDB2FBD2EAEAD2600D5E7F1 /* HorizontalListLayoutProvider.m in Sources */,
-                9DDB2FBE2EAEAD2600D5E7F1 /* SmartCollectionViewMountController.m in Sources */,
-                9DDB2FBF2EAEAD2600D5E7F1 /* SmartCollectionViewScheduler.m in Sources */,
-            );
+				9DDB2FC62EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.m in Sources */,
+				9DDB30A12EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.m in Sources */,
+				9DDB2FB52EAE8F3F00D5E7F1 /* SmartCollectionViewManager.m in Sources */,
+				9DDB30AA2EB6444300D5E7F1 /* SmartCollectionViewWrapperView.m in Sources */,
+				13B07FBC1A68108700A75B9A /* AppDelegate.mm in Sources */,
+				13B07FC11A68108700A75B9A /* main.m in Sources */,
+				9DDB2FBD2EAEAD2600D5E7F1 /* HorizontalListLayoutProvider.m in Sources */,
+				9DDB2FBE2EAEAD2600D5E7F1 /* SmartCollectionViewMountController.m in Sources */,
+				9DDB2FBF2EAEAD2600D5E7F1 /* SmartCollectionViewScheduler.m in Sources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
