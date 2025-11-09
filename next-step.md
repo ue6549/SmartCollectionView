@@ -300,15 +300,18 @@ Refactor into 5 focused components matching Requirements.md design:
 
 ### Migration Checklist
 
-- [ ] Create LayoutCache component, migrate cache logic
-- [ ] Create VisibilityTracker component, migrate visibility logic
-- [ ] Enhance SmartCollectionViewMountController, migrate mount/unmount logic
-- [ ] Create SmartCollectionViewEventBus, migrate event logic
-- [ ] Create SmartCollectionViewScheduler, migrate orchestration logic
+- [x] Create LayoutCache component, migrate cache logic
+- [x] Create VisibilityTracker component, migrate visibility logic
+- [x] Enhance SmartCollectionViewMountController, migrate mount/unmount logic
+- [x] Create SmartCollectionViewEventBus, migrate event logic
+- [x] Create SmartCollectionViewScheduler, migrate orchestration logic
 - [ ] Refactor SmartCollectionView to use components
 - [ ] Test all functionality still works
 - [ ] Verify no performance regression
 - [ ] Update documentation
+
+### Additional Follow-ups
+- Consider exposing a more granular public API with internal properties kept entirely private once refactor stabilises.
 
 ---
 
