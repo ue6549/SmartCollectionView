@@ -6,9 +6,16 @@
 #import <React/UIView+React.h>
 #import <React/RCTShadowView.h>
 #import <yoga/Yoga.h>
+#import <float.h>
 #import "SmartCollectionViewLocalData.h"
 #import "SmartCollectionViewWrapperView.h"
 #import "SmartCollectionViewShadowView.h"
+#import "SmartCollectionViewLayoutCache.h"
+#import "SmartCollectionViewLayoutSpec.h"
+#import "SmartCollectionViewVisibilityTracker.h"
+#import "SmartCollectionViewMountController.h"
+#import "SmartCollectionViewEventBus.h"
+#import "SmartCollectionViewScheduler.h"
 
 // Debug logging helper
 #ifdef DEBUG
@@ -25,6 +32,11 @@
 @property (nonatomic, strong) NSMutableArray<SmartCollectionViewWrapperView *> *wrapperReusePool;
 @property (nonatomic, strong) NSMutableSet<NSNumber *> *renderedIndices; // Track which indices JS has rendered
 @property (nonatomic, assign) BOOL isUpdatingVisibleItems;
+@property (nonatomic, strong, readwrite) SmartCollectionViewLayoutCache *layoutCache;
+@property (nonatomic, strong, readwrite) SmartCollectionViewVisibilityTracker *visibilityTracker;
+@property (nonatomic, strong, readwrite) SmartCollectionViewMountController *mountController;
+@property (nonatomic, strong, readwrite) SmartCollectionViewEventBus *eventBus;
+@property (nonatomic, strong, readwrite) SmartCollectionViewScheduler *scheduler;
 
 - (NSInteger)itemCount;
 - (CGSize)sizeForItemAtIndex:(NSInteger)index;
@@ -49,13 +61,18 @@
 - (void)commonInit
 {
     _virtualItems = [NSMutableArray array];
-    _layoutCache = [NSMutableDictionary dictionary];
+    _layoutCache = [[SmartCollectionViewLayoutCache alloc] init];
     _cumulativeOffsets = [NSMutableArray array];
-    _mountedIndices = [NSMutableSet set];
     _childViewRegistry = [NSMutableDictionary dictionary];
     _indexToWrapper = [NSMutableDictionary dictionary];
     _wrapperReusePool = [NSMutableArray array];
     _renderedIndices = [NSMutableSet set];
+    __weak typeof(self) weakSelf = self;
+    _visibilityTracker = [[SmartCollectionViewVisibilityTracker alloc] initWithSizeProvider:^CGSize(NSInteger index) {
+        return [weakSelf sizeForItemAtIndex:index];
+    }];
+    _visibilityTracker.horizontal = YES;
+    _eventBus = [[SmartCollectionViewEventBus alloc] initWithOwner:self];
     
     // Default values
     _initialNumToRender = 10;
@@ -83,6 +100,18 @@
     // Create container view for items
     _containerView = [[UIView alloc] initWithFrame:CGRectZero];
     [_scrollView addSubview:_containerView];
+
+    _mountController = [[SmartCollectionViewMountController alloc] initWithContainerView:_containerView];
+    _scheduler = [[SmartCollectionViewScheduler alloc] initWithOwner:self
+                                                         layoutCache:_layoutCache
+                                                  visibilityTracker:_visibilityTracker
+                                                    mountController:_mountController
+                                                           eventBus:_eventBus];
+    _scheduler.horizontal = _horizontal;
+    _scheduler.initialNumToRender = _initialNumToRender;
+    _scheduler.maxToRenderPerBatch = _maxToRenderPerBatch;
+    _scheduler.overscanCount = _overscanCount;
+    _scheduler.overscanLength = _overscanLength;
     
     SCVLog(@"SmartCollectionView initialized with scrollView");
     // BREAKPOINT: Set breakpoint here to check reactTag after initialization
@@ -122,8 +151,9 @@
 - (void)layoutSubviews
 {
     [super layoutSubviews];
-    
     SCVLog(@"layoutSubviews called, bounds: %@, reactSubviews count: %lu", NSStringFromCGRect(self.bounds), (unsigned long)self.reactSubviews.count);
+    self.scheduler.viewportSize = self.bounds.size;
+    self.scheduler.scrollOffset = self.scrollView.contentOffset;
     
     // Diagnostic: Log reactSubviews to see what React Native thinks our children are
     if (self.reactSubviews.count > 0) {
@@ -164,6 +194,7 @@
 
         [_virtualItems insertObject:item atIndex:index];
         _needsFullRecompute = YES;
+        self.scheduler.totalItemCount = [self itemCount];
         
         SCVLog(@"Added virtual item at index %ld, total items: %ld", (long)index, (long)_virtualItems.count);
         SCVLog(@"Child tag %@ initial frame %@", item.reactTag, NSStringFromCGRect(item.frame));
@@ -185,6 +216,7 @@
         }
         [_mountedIndices removeObject:@(index)];
         _needsFullRecompute = YES;
+        self.scheduler.totalItemCount = [self itemCount];
         
         SCVLog(@"Removed virtual item at index %ld, total items: %ld", (long)index, (long)_virtualItems.count);
         
@@ -198,6 +230,7 @@
     
     // Mark this index as rendered
     [_renderedIndices addObject:@(index)];
+    [self.scheduler updateRenderedIndices:[NSSet setWithSet:_renderedIndices]];
     
     // Also add to registry immediately by reactTag
     if (view.reactTag != nil) {
@@ -237,6 +270,7 @@
     // Ensure we're on main queue (manager may call from shadow thread)
     dispatch_async(dispatch_get_main_queue(), ^{
         self.localData = localData;
+        self.scheduler.totalItemCount = [self itemCount];
         SCVLog(@"✅ Received local data version %ld, items %lu", (long)localData.version, (unsigned long)localData.items.count);
         if (localData.items.count > 0) {
             SmartCollectionViewItemMetadata *first = localData.items.firstObject;
@@ -407,8 +441,7 @@
 
 - (void)performHorizontalLayoutRecompute
 {
-    // Clear existing cache
-    [_layoutCache removeAllObjects];
+    [self.layoutCache removeAllSpecs];
     [_cumulativeOffsets removeAllObjects];
     
     // First pass: calculate actual item sizes and find max height
@@ -460,7 +493,7 @@
                (long)i, NSStringFromCGSize(itemSize), NSStringFromCGRect(frame),
                frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
         
-        _layoutCache[@(i)] = [NSValue valueWithCGRect:frame];
+        [self.layoutCache setFrame:frame forIndex:i];
         [_cumulativeOffsets addObject:@(currentOffset)];
     }
     
@@ -486,8 +519,11 @@
     
     SCVLog(@"Updated scrollView.contentSize %@", NSStringFromCGSize(_contentSize));
     SCVLog(@"Updated SCV frame %@", NSStringFromCGRect(self.frame));
-    
+
     _lastComputedRange = NSMakeRange(0, itemCount);
+    self.scheduler.totalItemCount = itemCount;
+    [self.scheduler updateCumulativeOffsets:[_cumulativeOffsets copy]];
+    [self.scheduler notifyLayoutRecomputed];
 }
 
 // TODO: Future layout implementations
@@ -556,55 +592,14 @@
             CGRect frame = CGRectMake(currentOffset, 0, itemSize.width, self.bounds.size.height);
             currentOffset += itemSize.width;
             
-            _layoutCache[@(i)] = [NSValue valueWithCGRect:frame];
+            [self.layoutCache setFrame:frame forIndex:i];
         }
     }
 }
 
 - (NSRange)computeRangeToLayout
 {
-    // CURRENTLY: Horizontal layout only (uses width-based overscan)
-    // TODO: When adding vertical layouts, extract direction-specific logic
-    
-    NSRange visibleRange = [self visibleItemRange];
-    
-    // Expand by overscanCount or overscanLength (horizontal layout)
-    // Priority: overscanLength takes precedence if > 0
-    NSInteger buffer = _overscanCount;
-    if (_overscanLength > 0) {
-        CGFloat viewportWidth = self.bounds.size.width;
-        CGFloat averageItemWidth = _estimatedItemSize.width;
-        if (averageItemWidth > 0) {  // Guard against division by zero
-            buffer = (NSInteger)(_overscanLength * viewportWidth / averageItemWidth);
-            // Clamp buffer to reasonable range to prevent overflow/underflow issues
-            buffer = MAX(0, MIN(buffer, 100));  // Max 100 items buffer
-        }
-    }
-    
-    NSInteger itemCount = [self itemCount];
-    
-    // Calculate start safely - prevent integer underflow
-    // Use explicit cast and check to avoid negative values wrapping
-    NSInteger visibleStart = (NSInteger)visibleRange.location;
-    NSInteger calculatedStart = visibleStart - buffer;
-    NSInteger start = MAX(0, calculatedStart);  // Clamp to 0 minimum
-    
-    // Calculate end safely
-    NSInteger visibleEnd = NSMaxRange(visibleRange);
-    NSInteger calculatedEnd = visibleEnd + buffer;
-    NSInteger end = MIN(itemCount, calculatedEnd);
-    
-    // Safety check: ensure start <= end (should never happen, but defensive)
-    if (start > end) {
-        SCVLog(@"⚠️  WARNING: computeRangeToLayout calculated invalid range: start=%ld > end=%ld, using visible range", (long)start, (long)end);
-        start = MAX(0, visibleStart);
-        end = MIN(itemCount, visibleEnd);
-    }
-    
-    NSRange result = NSMakeRange(start, end - start);
-    SCVLog(@"computeRangeToLayout: visibleRange=%@, buffer=%ld, result=%@", NSStringFromRange(visibleRange), (long)buffer, NSStringFromRange(result));
-    
-    return result;
+    return [self.scheduler rangeToMount];
 }
 
 - (CGSize)estimatedSizeForItemAtIndex:(NSInteger)index
@@ -616,7 +611,7 @@
 {
     // Ensure layout has run before attempting to mount
     // If layout cache is empty and we have data, layout needs to run first
-    if (_layoutCache.count == 0 && self.localData && self.localData.items.count > 0 && _needsFullRecompute) {
+    if ([self.layoutCache count] == 0 && self.localData && self.localData.items.count > 0 && _needsFullRecompute) {
         SCVLog(@"⚠️  Layout cache is empty but we have data - running layout first before mounting");
         [self performFullLayoutRecompute];
         _needsFullRecompute = NO;
@@ -636,15 +631,14 @@
         NSMutableArray *itemsToMountArray = [NSMutableArray array];
         
         for (NSInteger i = rangeToMount.location; i < NSMaxRange(rangeToMount); i++) {
-            // Only add items that have frames in cache (layout has run) and views available
-            if (![_mountedIndices containsObject:@(i)]) {
-                NSValue *frameValue = _layoutCache[@(i)];
+            if (![self.mountController isItemMountedAtIndex:i]) {
+                SmartCollectionViewLayoutSpec *spec = [self.layoutCache specForIndex:i];
                 UIView *view = [self viewForItemAtIndex:i];
-                if (frameValue && view) {
+                if (spec && view) {
                     [itemsToMountArray addObject:@(i)];
                 } else {
-                    SCVLog(@"Skipping initial mount of index %ld - frame: %@, view: %@", 
-                           (long)i, frameValue ? @"exists" : @"missing", view ? @"exists" : @"missing");
+                    SCVLog(@"Skipping initial mount of index %ld - frame: %@, view: %@",
+                           (long)i, spec ? @"exists" : @"missing", view ? @"exists" : @"missing");
                 }
             }
         }
@@ -661,11 +655,10 @@
         NSMutableArray *itemsToMount = [NSMutableArray array];
         
         for (NSInteger i = rangeToMount.location; i < NSMaxRange(rangeToMount); i++) {
-            if (![_mountedIndices containsObject:@(i)]) {
-                // Only mount if we have frame and view
-                NSValue *frameValue = _layoutCache[@(i)];
+            if (![self.mountController isItemMountedAtIndex:i]) {
+                SmartCollectionViewLayoutSpec *spec = [self.layoutCache specForIndex:i];
                 UIView *view = [self viewForItemAtIndex:i];
-                if (frameValue && view) {
+                if (spec && view) {
                     [itemsToMount addObject:@(i)];
                 }
             } else {
@@ -688,7 +681,7 @@
             [self mountItemAtIndex:index];
         }
         
-        self.mountedCount = end;
+        _mountedCount = end;
         
         if (end < items.count) {
             [self mountItemsBatched:items batchSize:size];
@@ -709,18 +702,18 @@
         return;
     }
     
-    NSValue *frameValue = _layoutCache[@(index)];
-    if (!frameValue) {
-        SCVLog(@"❌ mountItemAtIndex: No frame in cache for index %ld", (long)index);
+    SmartCollectionViewLayoutSpec *spec = [self.layoutCache specForIndex:index];
+    if (!spec) {
+        SCVLog(@"❌ mountItemAtIndex: No layout spec for index %ld", (long)index);
         return;
     }
-    
-    CGRect frame = [frameValue CGRectValue];
+
+    CGRect frame = spec.frame;
     if (CGRectIsEmpty(frame) || CGRectIsNull(frame)) {
         SCVLog(@"❌ mountItemAtIndex: Invalid frame %@ for index %ld", NSStringFromCGRect(frame), (long)index);
         return;
     }
-    
+
     SCVLog(@"🔵 mountItemAtIndex: %ld - frame: %@, item tag: %@", (long)index, NSStringFromCGRect(frame), item.reactTag);
 
     SmartCollectionViewWrapperView *wrapper = _indexToWrapper[@(index)];
@@ -798,31 +791,23 @@
     if (itemActualSize.height > 0) {
         // Get the current max height from our layout cache
         CGFloat currentCalculatedMaxHeight = 0;
-        for (NSInteger i = 0; i < [self itemCount]; i++) {
-            NSValue *frameValue = _layoutCache[@(i)];
-            if (frameValue) {
-                CGRect frame = [frameValue CGRectValue];
-                if (frame.size.height > currentCalculatedMaxHeight) {
-                    currentCalculatedMaxHeight = frame.size.height;
-                }
+        for (SmartCollectionViewLayoutSpec *existingSpec in [self.layoutCache allSpecs]) {
+            if (existingSpec.frame.size.height > currentCalculatedMaxHeight) {
+                currentCalculatedMaxHeight = existingSpec.frame.size.height;
             }
         }
-        
-        // If this item is taller than our calculated max, trigger full recompute
+
         if (itemActualSize.height > currentCalculatedMaxHeight) {
-            SCVLog(@"⚠️  Mounted item %ld has actual height %.2f > calculated max %.2f, triggering height recalculation", 
+            SCVLog(@"⚠️  Mounted item %ld has actual height %.2f > calculated max %.2f, triggering height recalculation",
                    (long)index, itemActualSize.height, currentCalculatedMaxHeight);
-            
-            // Update the frame in cache with the actual measured size
-            NSValue *frameValue = _layoutCache[@(index)];
-            if (frameValue) {
-                CGRect frame = [frameValue CGRectValue];
-                frame.size.height = itemActualSize.height;
-                _layoutCache[@(index)] = [NSValue valueWithCGRect:frame];
-            }
-            
+
+            spec.frame = CGRectMake(spec.frame.origin.x,
+                                    spec.frame.origin.y,
+                                    spec.frame.size.width,
+                                    itemActualSize.height);
+            [self.layoutCache setSpec:spec forIndex:index];
+
             _needsFullRecompute = YES;
-            // Trigger layout recompute on next run loop to avoid recursion
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self recomputeLayout];
             });
@@ -866,199 +851,58 @@
 
 - (void)requestItemsForVisibleRange
 {
-    if (_totalItemCount == 0) {
-        return; // No items to request
-    }
-    
-    NSRange visibleRange = [self visibleItemRange];
-    if (visibleRange.length == 0) {
-        return; // No visible items yet
-    }
-    
-    NSRange rangeWithOverscan = [self expandRangeWithOverscan:visibleRange];
-    
-    // Find which indices we don't have rendered yet
-    NSMutableArray<NSNumber *> *neededIndices = [NSMutableArray array];
-    for (NSInteger i = rangeWithOverscan.location; i < NSMaxRange(rangeWithOverscan) && i < _totalItemCount; i++) {
-        if (![self hasRenderedItemAtIndex:i]) {
-            [neededIndices addObject:@(i)];
-        }
-    }
-    
-    if (neededIndices.count == 0) {
-        return; // All needed items already rendered
-    }
-    
-    // Limit batch size if configured
-    if (_maxToRenderPerBatch > 0 && neededIndices.count > _maxToRenderPerBatch) {
-        neededIndices = [[neededIndices subarrayWithRange:NSMakeRange(0, _maxToRenderPerBatch)] mutableCopy];
-    }
-    
-    SCVLog(@"Requesting items: %@", neededIndices);
-    
-    if (self.onRequestItems) {
-        self.onRequestItems(@{
-            @"indices": neededIndices
-        });
-    }
+    [self.scheduler requestItemsIfNeeded];
 }
 
 #pragma mark - UIScrollViewDelegate
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-    // CURRENTLY: Horizontal layout only (tracks X offset)
-    // TODO: When adding vertical layouts, track Y offset as well
     _scrollOffset = scrollView.contentOffset.x; // Horizontal scroll offset
-    SCVLog(@"Scroll offset %.2f", _scrollOffset);
-    
-    // Emit scroll event
-    if (self.onScroll) {
-        self.onScroll(@{
-            @"contentOffset": @{
-                @"x": @(scrollView.contentOffset.x),
-                @"y": @(scrollView.contentOffset.y)
-            },
-            @"contentSize": @{
-                @"width": @(scrollView.contentSize.width),
-                @"height": @(scrollView.contentSize.height)
-            },
-            @"layoutMeasurement": @{
-                @"width": @(scrollView.frame.size.width),
-                @"height": @(scrollView.frame.size.height)
-            }
-        });
+    self.scheduler.scrollOffset = scrollView.contentOffset;
+    self.scheduler.viewportSize = scrollView.bounds.size;
+    self.scheduler.totalItemCount = [self itemCount];
+
+    CGPoint velocity = CGPointZero;
+    if (scrollView.isTracking || scrollView.isDecelerating) {
+        velocity = [scrollView.panGestureRecognizer velocityInView:scrollView];
     }
-    
-    // Request items if needed and update visible items
-    [self requestItemsForVisibleRange];
+    [self.eventBus emitScrollWithOffset:scrollView.contentOffset
+                                velocity:velocity
+                                 content:scrollView.contentSize
+                                 visible:scrollView.bounds.size];
+
+    [self.scheduler requestItemsIfNeeded];
     [self updateVisibleItems];
-    
-    // Emit visible range change
-    NSRange visibleRange = [self visibleItemRange];
-    if (self.onVisibleRangeChange) {
-        self.onVisibleRangeChange(@{
-            @"first": @(visibleRange.location),
-            @"last": @(NSMaxRange(visibleRange) - 1)
-        });
-    }
+
+    NSRange visibleRange = [self.scheduler visibleRange];
+    [self.eventBus emitVisibleRange:visibleRange];
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
 {
-    if (self.onScrollBeginDrag) {
-        self.onScrollBeginDrag(@{
-            @"contentOffset": @{
-                @"x": @(scrollView.contentOffset.x),
-                @"y": @(scrollView.contentOffset.y)
-            },
-            @"contentSize": @{
-                @"width": @(scrollView.contentSize.width),
-                @"height": @(scrollView.contentSize.height)
-            },
-            @"layoutMeasurement": @{
-                @"width": @(scrollView.frame.size.width),
-                @"height": @(scrollView.frame.size.height)
-            }
-        });
-    }
+    [self.eventBus emitScrollBeginDrag];
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
 {
-    if (self.onScrollEndDrag) {
-        self.onScrollEndDrag(@{
-            @"contentOffset": @{
-                @"x": @(scrollView.contentOffset.x),
-                @"y": @(scrollView.contentOffset.y)
-            },
-            @"contentSize": @{
-                @"width": @(scrollView.contentSize.width),
-                @"height": @(scrollView.contentSize.height)
-            },
-            @"layoutMeasurement": @{
-                @"width": @(scrollView.frame.size.width),
-                @"height": @(scrollView.frame.size.height)
-            }
-        });
-    }
-    
-    if (!decelerate && self.onScrollEndDecelerating) {
-        self.onScrollEndDecelerating(@{
-            @"contentOffset": @{
-                @"x": @(scrollView.contentOffset.x),
-                @"y": @(scrollView.contentOffset.y)
-            },
-            @"contentSize": @{
-                @"width": @(scrollView.contentSize.width),
-                @"height": @(scrollView.contentSize.height)
-            },
-            @"layoutMeasurement": @{
-                @"width": @(scrollView.frame.size.width),
-                @"height": @(scrollView.frame.size.height)
-            }
-        });
+    [self.eventBus emitScrollEndDrag];
+
+    if (!decelerate) {
+        [self.eventBus emitScrollEndDecelerating];
     }
 }
 
 - (void)scrollViewWillBeginDecelerating:(UIScrollView *)scrollView
 {
-    if (self.onMomentumScrollBegin) {
-        self.onMomentumScrollBegin(@{
-            @"contentOffset": @{
-                @"x": @(scrollView.contentOffset.x),
-                @"y": @(scrollView.contentOffset.y)
-            },
-            @"contentSize": @{
-                @"width": @(scrollView.contentSize.width),
-                @"height": @(scrollView.contentSize.height)
-            },
-            @"layoutMeasurement": @{
-                @"width": @(scrollView.frame.size.width),
-                @"height": @(scrollView.frame.size.height)
-            }
-        });
-    }
+    [self.eventBus emitMomentumScrollBegin];
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
 {
-    if (self.onMomentumScrollEnd) {
-        self.onMomentumScrollEnd(@{
-            @"contentOffset": @{
-                @"x": @(scrollView.contentOffset.x),
-                @"y": @(scrollView.contentOffset.y)
-            },
-            @"contentSize": @{
-                @"width": @(scrollView.contentSize.width),
-                @"height": @(scrollView.contentSize.height)
-            },
-            @"layoutMeasurement": @{
-                @"width": @(scrollView.frame.size.width),
-                @"height": @(scrollView.frame.size.height)
-            }
-        });
-    }
-    
-    if (self.onScrollEndDecelerating) {
-        self.onScrollEndDecelerating(@{
-            @"contentOffset": @{
-                @"x": @(scrollView.contentOffset.x),
-                @"y": @(scrollView.contentOffset.y)
-            },
-            @"contentSize": @{
-                @"width": @(scrollView.contentSize.width),
-                @"height": @(scrollView.contentSize.height)
-            },
-            @"layoutMeasurement": @{
-                @"width": @(scrollView.frame.size.width),
-                @"height": @(scrollView.frame.size.height)
-            }
-        });
-    }
-    
-    // Request items after scrolling ends
-    [self requestItemsForVisibleRange];
+    [self.eventBus emitMomentumScrollEnd];
+    [self.eventBus emitScrollEndDecelerating];
+    [self.scheduler requestItemsIfNeeded];
 }
 
 - (void)updateContentSize
@@ -1095,103 +939,7 @@
 
 - (NSRange)visibleItemRange
 {
-    // CURRENTLY: Horizontal layout only (uses width-based visibility)
-    // TODO: When adding vertical layouts, extract into separate method or add direction parameter
-    
-    if ([self itemCount] == 0) {
-        return NSMakeRange(0, 0);
-    }
-    
-    // Horizontal layout: use viewport width and horizontal scroll offset
-    CGFloat viewportWidth = self.bounds.size.width;
-    
-    // If bounds are zero, assume first few items are visible (for initial mount)
-    if (viewportWidth == 0) {
-        SCVLog(@"⚠️  Viewport width is zero, returning initial visible range [0, %ld]", (long)MIN(5, [self itemCount]));
-        return NSMakeRange(0, MIN(5, [self itemCount]));
-    }
-    
-    CGFloat startOffset = _scrollOffset;
-    CGFloat endOffset = startOffset + viewportWidth;
-    
-    NSInteger startIndex = 0;
-    NSInteger endIndex = [self itemCount];
-    
-    // Binary search for start index (based on cumulative X offsets)
-    NSInteger left = 0, right = [self itemCount] - 1;
-    while (left <= right) {
-        NSInteger mid = (left + right) / 2;
-        CGFloat offset = [self getCumulativeOffsetAtIndex:mid];
-        if (offset < startOffset) {
-            left = mid + 1;
-        } else {
-            right = mid - 1;
-        }
-    }
-    startIndex = left;
-    
-    // Binary search for end index
-    // For an item to be visible, it must INTERSECT the viewport:
-    // - Item start < viewport end (endOffset) AND
-    // - Item end > viewport start (startOffset)
-    // We want to find the last item whose START is < endOffset (it could be partially visible)
-    left = startIndex;
-    right = [self itemCount] - 1;
-    while (left <= right) {
-        NSInteger mid = (left + right) / 2;
-        CGFloat itemStart = [self getCumulativeOffsetAtIndex:mid];
-        
-        // Check if item's START is within viewport end
-        if (itemStart < endOffset) {
-            // This item starts before viewport end, so it could be visible
-            // Move right to find the last such item
-            left = mid + 1;
-        } else {
-            // Item starts at or after viewport end, look earlier
-            right = mid - 1;
-        }
-    }
-    endIndex = left;
-    
-    // Binary search found the last item whose START is < endOffset
-    // But we need to verify that items actually intersect (itemEnd > startOffset)
-    // Use binary search again to find the last item that actually intersects
-    if (endIndex > startIndex) {
-        // Binary search for the last item that intersects
-        NSInteger intersectLeft = startIndex;
-        NSInteger intersectRight = endIndex - 1; // Last candidate from first search
-        NSInteger lastIntersectingIndex = startIndex - 1;
-        
-        while (intersectLeft <= intersectRight) {
-            NSInteger mid = (intersectLeft + intersectRight) / 2;
-            CGFloat itemStart = [self getCumulativeOffsetAtIndex:mid];
-            CGSize itemSize = [self sizeForItemAtIndex:mid];
-            CGFloat itemEnd = itemStart + itemSize.width;
-            
-            // Item intersects if itemEnd > startOffset (itemStart < endOffset already known)
-            if (itemEnd > startOffset) {
-                // This item intersects, check if there are more
-                lastIntersectingIndex = mid;
-                intersectLeft = mid + 1;
-            } else {
-                // This item doesn't intersect, look earlier
-                intersectRight = mid - 1;
-            }
-        }
-        
-        // If we found intersecting items, endIndex should be lastIntersectingIndex + 1
-        if (lastIntersectingIndex >= startIndex) {
-            endIndex = lastIntersectingIndex + 1;
-        } else {
-            // No items intersect (shouldn't happen if startIndex is correct)
-            endIndex = startIndex;
-        }
-    }
-    
-    SCVLog(@"visibleItemRange: startOffset=%.2f, endOffset=%.2f, startIndex=%ld, endIndex=%ld, range length=%ld", 
-           startOffset, endOffset, (long)startIndex, (long)endIndex, (long)(endIndex - startIndex));
-    
-    return NSMakeRange(startIndex, endIndex - startIndex);
+    return [self.scheduler visibleRange];
 }
 
 - (void)updateVisibleItems
@@ -1215,12 +963,12 @@
     
     for (NSInteger i = rangeToMount.location; i < NSMaxRange(rangeToMount); i++) {
         UIView *view = [self viewForItemAtIndex:i];
-        NSValue *frameValue = _layoutCache[@(i)];
-        if (view && frameValue) {
+        SmartCollectionViewLayoutSpec *spec = [self.layoutCache specForIndex:i];
+        if (view && spec) {
             [itemsReadyToMount addObject:@(i)];
         } else {
             [itemsNotReady addObject:@(i)];
-            SCVLog(@"Item %ld not ready: view=%@, frame=%@", (long)i, view ? @"YES" : @"NO", frameValue ? @"YES" : @"NO");
+            SCVLog(@"Item %ld not ready: view=%@, spec=%@", (long)i, view ? @"YES" : @"NO", spec ? @"YES" : @"NO");
         }
     }
     
@@ -1263,8 +1011,8 @@
     
     for (NSNumber *indexNumber in itemsReadyToMount) {
         NSInteger i = [indexNumber integerValue];
-        NSValue *frameValue = _layoutCache[indexNumber];
-        CGRect frame = frameValue ? [frameValue CGRectValue] : CGRectZero;
+        SmartCollectionViewLayoutSpec *spec = [self.layoutCache specForIndex:i];
+        CGRect frame = spec ? [spec frame] : CGRectZero;
 
         if ([_mountedIndices containsObject:indexNumber]) {
             // Item already mounted - verify it's still in hierarchy and update if needed
@@ -1370,6 +1118,7 @@
     }
 
     _horizontal = horizontal;
+    self.scheduler.horizontal = horizontal;
     
     // Sync to shadow view for measureFunc
     [self syncPropsToShadowView];
@@ -1395,6 +1144,42 @@
     
     // Sync to shadow view for measureFunc
     [self syncPropsToShadowView];
+}
+
+- (void)setOverscanCount:(NSInteger)overscanCount
+{
+    if (_overscanCount == overscanCount) {
+        return;
+    }
+    _overscanCount = overscanCount;
+    self.scheduler.overscanCount = overscanCount;
+}
+
+- (void)setOverscanLength:(CGFloat)overscanLength
+{
+    if (fabs(_overscanLength - overscanLength) < DBL_EPSILON) {
+        return;
+    }
+    _overscanLength = overscanLength;
+    self.scheduler.overscanLength = overscanLength;
+}
+
+- (void)setInitialNumToRender:(NSInteger)initialNumToRender
+{
+    if (_initialNumToRender == initialNumToRender) {
+        return;
+    }
+    _initialNumToRender = initialNumToRender;
+    self.scheduler.initialNumToRender = initialNumToRender;
+}
+
+- (void)setMaxToRenderPerBatch:(NSInteger)maxToRenderPerBatch
+{
+    if (_maxToRenderPerBatch == maxToRenderPerBatch) {
+        return;
+    }
+    _maxToRenderPerBatch = maxToRenderPerBatch;
+    self.scheduler.maxToRenderPerBatch = maxToRenderPerBatch;
 }
 
 - (void)syncPropsToShadowView

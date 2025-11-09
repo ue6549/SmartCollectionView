@@ -1,44 +1,46 @@
 #import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
-#import "SmartCollectionViewLayoutProvider.h"
+#import <CoreGraphics/CoreGraphics.h>
+
+@class SmartCollectionView;
+@class SmartCollectionViewLayoutCache;
+@class SmartCollectionViewVisibilityTracker;
+@class SmartCollectionViewMountController;
+@class SmartCollectionViewEventBus;
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface SmartCollectionViewScheduler : NSObject
 
-// Properties
-@property (nonatomic, strong) id<SmartCollectionViewLayoutProvider> layoutProvider;
-@property (nonatomic, strong) NSMutableArray<UIView *> *virtualItems;
-@property (nonatomic, assign) CGSize viewport;
-@property (nonatomic, assign) BOOL horizontal;
+@property (nonatomic, weak, readonly) SmartCollectionView *owner;
+@property (nonatomic, strong, readonly) SmartCollectionViewLayoutCache *layoutCache;
+@property (nonatomic, strong, readonly) SmartCollectionViewVisibilityTracker *visibilityTracker;
+@property (nonatomic, strong, readonly) SmartCollectionViewMountController *mountController;
+@property (nonatomic, strong, readonly) SmartCollectionViewEventBus *eventBus;
+
 @property (nonatomic, assign) NSInteger initialNumToRender;
 @property (nonatomic, assign) NSInteger maxToRenderPerBatch;
 @property (nonatomic, assign) NSInteger overscanCount;
+@property (nonatomic, assign) CGFloat overscanLength;
+@property (nonatomic, assign, getter=isHorizontal) BOOL horizontal;
 
-// State
-@property (nonatomic, assign) CGFloat scrollOffset;
-@property (nonatomic, assign) CGSize contentSize;
-@property (nonatomic, strong) NSMutableSet<NSNumber *> *mountedIndices;
-@property (nonatomic, assign) BOOL needsLayoutRecompute;
+@property (nonatomic, assign) CGPoint scrollOffset;
+@property (nonatomic, assign) CGSize viewportSize;
+@property (nonatomic, assign) NSInteger totalItemCount;
 
-// Initialization
-- (instancetype)initWithLayoutProvider:(id<SmartCollectionViewLayoutProvider>)layoutProvider;
+- (instancetype)initWithOwner:(SmartCollectionView *)owner
+                  layoutCache:(SmartCollectionViewLayoutCache *)layoutCache
+           visibilityTracker:(SmartCollectionViewVisibilityTracker *)visibilityTracker
+             mountController:(SmartCollectionViewMountController *)mountController
+                    eventBus:(SmartCollectionViewEventBus *)eventBus NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
 
-// Main methods
-- (void)onScrollOffsetChange:(CGFloat)offset;
-- (void)onDataChange:(NSArray<UIView *> *)items;
-- (void)onViewportChange:(CGSize)viewport;
-- (void)recomputeLayoutIfNeeded;
+- (void)updateCumulativeOffsets:(NSArray<NSNumber *> *)offsets;
+- (void)updateRenderedIndices:(NSSet<NSNumber *> *)renderedIndices;
+- (void)notifyLayoutRecomputed;
 
-// Query methods
-- (NSRange)visibleItemRange;
+- (NSRange)visibleRange;
 - (NSRange)rangeToMount;
-- (NSArray<NSNumber *> *)indicesToMount;
-- (NSArray<NSNumber *> *)indicesToUnmount;
-
-// Layout methods
-- (CGRect)frameForItemAtIndex:(NSInteger)index;
-- (CGSize)getContentSize;
+- (void)requestItemsIfNeeded;
 
 @end
 

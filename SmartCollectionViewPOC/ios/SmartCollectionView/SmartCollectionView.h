@@ -1,6 +1,12 @@
 #import <React/RCTView.h>
 #import <React/RCTComponent.h>
 
+@class SmartCollectionViewLayoutCache;
+@class SmartCollectionViewVisibilityTracker;
+@class SmartCollectionViewMountController;
+@class SmartCollectionViewEventBus;
+@class SmartCollectionViewScheduler;
+
 @interface SmartCollectionView : RCTView <UIScrollViewDelegate>
 
 // Virtualization properties
@@ -23,23 +29,27 @@
 @property (nonatomic, copy) RCTDirectEventBlock onScrollEndDecelerating;
 
 // Scroll view components
-@property (nonatomic, strong) UIScrollView *scrollView;
-@property (nonatomic, strong) UIView *containerView;
+@property (nonatomic, strong, readonly) UIScrollView *scrollView;
+@property (nonatomic, strong, readonly) UIView *containerView;
 
 // Data and layout
-@property (nonatomic, strong) NSMutableArray<UIView *> *virtualItems;
-@property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSValue *> *layoutCache;
-@property (nonatomic, strong) NSMutableArray<NSNumber *> *cumulativeOffsets;
-@property (nonatomic, assign) NSRange lastComputedRange;
-@property (nonatomic, assign) BOOL needsFullRecompute;
+@property (nonatomic, strong, readonly) NSMutableArray<UIView *> *virtualItems;
+@property (nonatomic, strong, readonly) NSMutableArray<NSNumber *> *cumulativeOffsets;
+@property (nonatomic, assign, readonly) NSRange lastComputedRange;
+@property (nonatomic, assign, readonly) BOOL needsFullRecompute;
+@property (nonatomic, strong, readonly) SmartCollectionViewLayoutCache *layoutCache;
+@property (nonatomic, strong, readonly) SmartCollectionViewVisibilityTracker *visibilityTracker;
+@property (nonatomic, strong, readonly) SmartCollectionViewMountController *mountController;
+@property (nonatomic, strong, readonly) SmartCollectionViewEventBus *eventBus;
+@property (nonatomic, strong, readonly) SmartCollectionViewScheduler *scheduler;
 
 // Mounting state
-@property (nonatomic, strong) NSMutableSet<NSNumber *> *mountedIndices;
-@property (nonatomic, assign) NSInteger mountedCount;
+@property (nonatomic, strong, readonly) NSMutableSet<NSNumber *> *mountedIndices;
+@property (nonatomic, assign, readonly) NSInteger mountedCount;
 
 // Scroll tracking
-@property (nonatomic, assign) CGFloat scrollOffset;
-@property (nonatomic, assign) CGSize contentSize;
+@property (nonatomic, assign, readonly) CGFloat scrollOffset;
+@property (nonatomic, assign, readonly) CGSize contentSize;
 
 // Methods
 - (void)addVirtualItem:(UIView *)item atIndex:(NSInteger)index;
