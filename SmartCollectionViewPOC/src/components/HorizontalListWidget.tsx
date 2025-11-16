@@ -16,7 +16,7 @@ const HorizontalListWidget: React.FC<HorizontalListWidgetProps> = ({
   useSmartCollection = false,
   longestItemPosition = 'last'
 }) => {
-  const [products] = useState(() => generateMockProducts(10, { longestItemPosition }));
+  const [products] = useState(() => generateMockProducts(250, { longestItemPosition }));
   
   const renderProductCard = ({ item, index }: { item: ProductCardType; index: number }) => {
     return <ProductCard key={item.id} product={item} />;
