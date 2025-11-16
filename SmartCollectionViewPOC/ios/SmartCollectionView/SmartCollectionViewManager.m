@@ -7,8 +7,8 @@
 #import <React/RCTLog.h>
 
 #ifdef DEBUG
-#define SCVManagerLog(fmt, ...) RCTLogInfo(@"[SCVManager] " fmt, ##__VA_ARGS__)
-#else
+//#define SCVManagerLog(fmt, ...) RCTLogInfo(@"[SCVManager] " fmt, ##__VA_ARGS__)
+//#else
 #define SCVManagerLog(fmt, ...)
 #endif
 

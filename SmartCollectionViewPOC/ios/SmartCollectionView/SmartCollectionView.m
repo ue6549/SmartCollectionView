@@ -19,8 +19,8 @@
 
 // Debug logging helper
 #ifdef DEBUG
-#define SCVLog(fmt, ...) NSLog(@"[SCV] " fmt, ##__VA_ARGS__)
-#else
+//#define SCVLog(fmt, ...) NSLog(@"[SCV] " fmt, ##__VA_ARGS__)
+//#else
 #define SCVLog(fmt, ...)
 #endif
 

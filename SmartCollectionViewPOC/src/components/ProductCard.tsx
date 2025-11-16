@@ -5,12 +5,13 @@ import { ProductCard } from '../data/mockData';
 
 interface ProductCardProps {
   product: ProductCard;
+  index?: number;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
 const cardWidth = screenWidth * 0.4; // 40% of screen width
 
-const ProductCardComponent: React.FC<ProductCardProps> = ({ product }) => {
+const ProductCardComponent: React.FC<ProductCardProps> = ({ product, index }) => {
   return (
     <View style={styles.container}>
       <FastImage
@@ -21,7 +22,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product }) => {
       
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={2}>
-          {product.title}
+          {typeof index === 'number' ? `${index}. ` : ''}{product.title}
         </Text>
         
         {product.subtitle && (

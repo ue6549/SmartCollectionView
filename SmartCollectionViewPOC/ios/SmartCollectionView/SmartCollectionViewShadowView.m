@@ -10,8 +10,8 @@
 #import <yoga/Yoga.h>
 
 #ifdef DEBUG
-#define SCVShadowLog(fmt, ...) NSLog(@"[SCVShadow] " fmt, ##__VA_ARGS__)
-#else
+//#define SCVShadowLog(fmt, ...) NSLog(@"[SCVShadow] " fmt, ##__VA_ARGS__)
+//#else
 #define SCVShadowLog(fmt, ...)
 #endif
 
