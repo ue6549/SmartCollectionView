@@ -35,6 +35,9 @@ interface SmartCollectionViewNativeProps {
   horizontal?: boolean;
   estimatedItemSize?: {width: number, height: number};
   
+  // Recycling
+  itemTypes?: {[index: number]: string | null}; // Map of index -> itemType, updated incrementally
+  
   // Events
   onRequestItems?: (event: NativeSyntheticEvent<RequestItemsEvent>) => void;
   onVisibleRangeChange?: (event: NativeSyntheticEvent<VisibleRangeChangeEvent>) => void;
@@ -66,6 +69,9 @@ interface SmartCollectionViewProps {
   // Layout
   horizontal?: boolean;
   estimatedItemSize?: {width: number, height: number};
+  
+  // Recycling
+  getItemType?: (item: any, index: number) => string | null; // Optional: returns item type for recycling
   
   // Events
   onRequestItems?: (event: NativeSyntheticEvent<RequestItemsEvent>) => void;
@@ -99,6 +105,7 @@ const SmartCollectionView: React.FC<SmartCollectionViewProps> = ({
   initialShadowBufferMultiplier,
   horizontal = true,
   estimatedItemSize = {width: 100, height: 80},
+  getItemType,
   useFlatList = false,
   onRequestItems,
   onVisibleRangeChange,
@@ -117,25 +124,57 @@ const SmartCollectionView: React.FC<SmartCollectionViewProps> = ({
     return Array.from({ length: count }, (_, i) => i);
   });
   
+  // Maintain itemType map (index -> itemType)
+  const [itemTypeMap, setItemTypeMap] = useState<{[index: number]: string | null}>({});
+  
   // Reset when data changes
   useEffect(() => {
     const count = Math.min(initialNumToRender, data.length);
-    setRenderedIndices(Array.from({ length: count }, (_, i) => i));
-  }, [data.length, initialNumToRender]);
+    const newIndices = Array.from({ length: count }, (_, i) => i);
+    setRenderedIndices(newIndices);
+    
+    // Compute itemTypes for initial indices
+    if (getItemType) {
+      const newItemTypes: {[index: number]: string | null} = {};
+      newIndices.forEach(index => {
+        if (data[index] !== undefined) {
+          newItemTypes[index] = getItemType(data[index], index);
+        }
+      });
+      setItemTypeMap(newItemTypes);
+    } else {
+      setItemTypeMap({});
+    }
+  }, [data.length, initialNumToRender, getItemType]);
   
   // Handle native request for more items
   const handleRequestItems = useCallback((event: NativeSyntheticEvent<RequestItemsEvent>) => {
     const { indices } = event.nativeEvent;
+    
+    // Add new indices to rendered set
     setRenderedIndices(prev => {
       const newSet = new Set([...prev, ...indices]);
       return Array.from(newSet).sort((a, b) => a - b);
     });
     
+    // Compute itemTypes for newly requested indices
+    if (getItemType) {
+      setItemTypeMap(prev => {
+        const updated = {...prev};
+        indices.forEach(index => {
+          if (data[index] !== undefined) {
+            updated[index] = getItemType(data[index], index);
+          }
+        });
+        return updated;
+      });
+    }
+    
     // Call user's handler if provided
     if (onRequestItems) {
       onRequestItems(event);
     }
-  }, [onRequestItems]);
+  }, [onRequestItems, getItemType, data]);
   
   // Only render items whose indices are in renderedIndices
   // Wrap each item in an absolute-positioned View so they don't affect parent layout
@@ -163,6 +202,7 @@ const SmartCollectionView: React.FC<SmartCollectionViewProps> = ({
     ...(initialShadowBufferMultiplier !== undefined && { initialShadowBufferMultiplier }),
     horizontal,
     estimatedItemSize,
+    itemTypes: getItemType ? itemTypeMap : undefined, // Pass itemType map to native
     onRequestItems: handleRequestItems,
     onVisibleRangeChange,
     onScroll,

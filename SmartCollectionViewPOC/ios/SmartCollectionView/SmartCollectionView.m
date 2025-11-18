@@ -16,6 +16,7 @@
 #import "SmartCollectionViewMountController.h"
 #import "SmartCollectionViewEventBus.h"
 #import "SmartCollectionViewScheduler.h"
+#import "SmartCollectionViewReusePool.h"
 
 // Debug logging helper
 #ifdef DEBUG
@@ -37,6 +38,7 @@
 @property (nonatomic, strong, readwrite) SmartCollectionViewMountController *mountController;
 @property (nonatomic, strong, readwrite) SmartCollectionViewEventBus *eventBus;
 @property (nonatomic, strong, readwrite) SmartCollectionViewScheduler *scheduler;
+@property (nonatomic, strong, readwrite) SmartCollectionViewReusePool *reusePool;
 @property (nonatomic, strong) NSMutableSet<NSNumber *> *appliedIndicesThisTick;
 @property (nonatomic, assign) BOOL hasScrolled; // Track if user has scrolled (to switch from initial to scroll props)
 
@@ -112,6 +114,7 @@
     [_scrollView addSubview:_containerView];
 
     _mountController = [[SmartCollectionViewMountController alloc] initWithContainerView:_containerView];
+    _reusePool = [[SmartCollectionViewReusePool alloc] init];
     _scheduler = [[SmartCollectionViewScheduler alloc] initWithOwner:self
                                                          layoutCache:_layoutCache
                                                   visibilityTracker:_visibilityTracker
@@ -717,7 +720,22 @@
         return;
     }
 
+    // First, try to get view from registry (preferred - React Native has rendered it)
     UIView *item = [self viewForItemAtIndex:index];
+    
+    // If no view in registry, try to dequeue from reuse pool (if itemTypes map is provided)
+    if (!item && _itemTypes) {
+        NSString *itemType = _itemTypes[@(index)];
+        if (itemType) {
+            item = [_reusePool dequeueViewForItemType:itemType];
+            if (item) {
+                SCVLog(@"♻️  Reused view from pool for index %ld (type: %@)", (long)index, itemType);
+                // Note: Recycled view's reactTag might not match expected tag for this index.
+                // React Native will handle reconciliation when JS renders this index.
+            }
+        }
+    }
+    
     if (!item) {
         SCVLog(@"❌ mountItemAtIndex: No view available for index %ld", (long)index);
         return;
@@ -845,6 +863,15 @@
             UIView *item = wrapper.subviews.firstObject;
             if (item) {
                 [item removeFromSuperview];
+                
+                // Enqueue to reuse pool if itemTypes map is provided
+                if (_itemTypes) {
+                    NSString *itemType = _itemTypes[@(index)];
+                    if (itemType) {
+                        [_reusePool enqueueView:item forItemType:itemType];
+                        SCVLog(@"♻️  Enqueued view to reuse pool for index %ld (type: %@)", (long)index, itemType);
+                    }
+                }
             }
             [wrapper removeFromSuperview];
             wrapper.reactTag = nil;

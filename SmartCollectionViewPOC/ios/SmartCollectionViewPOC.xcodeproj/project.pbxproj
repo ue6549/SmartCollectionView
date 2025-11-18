@@ -36,6 +36,8 @@
 		9DF2A1062F1234567890ABCD /* SmartCollectionViewVisibilityTracker.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DF2A0052F1234567890ABCD /* SmartCollectionViewVisibilityTracker.h */; };
 		9DF2A1072F1234567890ABCD /* SmartCollectionViewEventBus.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DF2A0082F1234567890ABCD /* SmartCollectionViewEventBus.m */; };
 		9DF2A1082F1234567890ABCD /* SmartCollectionViewEventBus.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DF2A0072F1234567890ABCD /* SmartCollectionViewEventBus.h */; };
+		9DF2A1092F1234567890ABCD /* SmartCollectionViewReusePool.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DF2A10C2F1234567890ABCD /* SmartCollectionViewReusePool.m */; };
+		9DF2A10B2F1234567890ABCD /* SmartCollectionViewReusePool.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DF2A10A2F1234567890ABCD /* SmartCollectionViewReusePool.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +92,8 @@
 		9DF2A0062F1234567890ABCD /* SmartCollectionViewVisibilityTracker.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewVisibilityTracker.m; sourceTree = "<group>"; };
 		9DF2A0072F1234567890ABCD /* SmartCollectionViewEventBus.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewEventBus.h; sourceTree = "<group>"; };
 		9DF2A0082F1234567890ABCD /* SmartCollectionViewEventBus.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewEventBus.m; sourceTree = "<group>"; };
+		9DF2A10A2F1234567890ABCD /* SmartCollectionViewReusePool.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewReusePool.h; sourceTree = "<group>"; };
+		9DF2A10C2F1234567890ABCD /* SmartCollectionViewReusePool.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewReusePool.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -204,6 +208,8 @@
 				9DF2A0062F1234567890ABCD /* SmartCollectionViewVisibilityTracker.m */,
 				9DF2A0072F1234567890ABCD /* SmartCollectionViewEventBus.h */,
 				9DF2A0082F1234567890ABCD /* SmartCollectionViewEventBus.m */,
+				9DF2A10A2F1234567890ABCD /* SmartCollectionViewReusePool.h */,
+				9DF2A10C2F1234567890ABCD /* SmartCollectionViewReusePool.m */,
 				9DDB2FB12EAE8F3F00D5E7F1 /* SmartCollectionViewManager.h */,
 				9DDB2FB22EAE8F3F00D5E7F1 /* SmartCollectionViewManager.m */,
 				9DDB2FB62EAEAD2600D5E7F1 /* HorizontalListLayoutProvider.h */,
@@ -245,6 +251,7 @@
 				9DF2A1052F1234567890ABCD /* SmartCollectionViewLayoutCache.h in Headers */,
 				9DF2A1062F1234567890ABCD /* SmartCollectionViewVisibilityTracker.h in Headers */,
 				9DF2A1082F1234567890ABCD /* SmartCollectionViewEventBus.h in Headers */,
+				9DF2A10B2F1234567890ABCD /* SmartCollectionViewReusePool.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -527,6 +534,7 @@
 				9DF2A1022F1234567890ABCD /* SmartCollectionViewLayoutCache.m in Sources */,
 				9DF2A1032F1234567890ABCD /* SmartCollectionViewVisibilityTracker.m in Sources */,
 				9DF2A1072F1234567890ABCD /* SmartCollectionViewEventBus.m in Sources */,
+				9DF2A1092F1234567890ABCD /* SmartCollectionViewReusePool.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

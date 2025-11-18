@@ -6,6 +6,7 @@
 @class SmartCollectionViewMountController;
 @class SmartCollectionViewEventBus;
 @class SmartCollectionViewScheduler;
+@class SmartCollectionViewReusePool;
 
 @interface SmartCollectionView : RCTView <UIScrollViewDelegate>
 
@@ -25,6 +26,9 @@
 @property (nonatomic, assign) BOOL horizontal;
 @property (nonatomic, assign) CGSize estimatedItemSize;
 @property (nonatomic, assign) NSInteger totalItemCount;
+
+// Recycling
+@property (nonatomic, strong, nullable) NSDictionary<NSNumber *, NSString *> *itemTypes; // Map of index -> itemType
 
 // Events
 @property (nonatomic, copy) RCTDirectEventBlock onRequestItems;
@@ -50,6 +54,7 @@
 @property (nonatomic, strong, readonly) SmartCollectionViewMountController *mountController;
 @property (nonatomic, strong, readonly) SmartCollectionViewEventBus *eventBus;
 @property (nonatomic, strong, readonly) SmartCollectionViewScheduler *scheduler;
+@property (nonatomic, strong, readonly) SmartCollectionViewReusePool *reusePool;
 
 // Mounting state
 @property (nonatomic, strong, readonly) NSMutableSet<NSNumber *> *mountedIndices;

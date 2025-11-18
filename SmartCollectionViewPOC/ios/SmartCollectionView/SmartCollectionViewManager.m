@@ -46,6 +46,20 @@ RCT_EXPORT_VIEW_PROPERTY(horizontal, BOOL)
 RCT_EXPORT_VIEW_PROPERTY(estimatedItemSize, CGSize)
 RCT_EXPORT_VIEW_PROPERTY(totalItemCount, NSInteger)
 
+// Custom property for itemTypes (dictionary of index -> itemType)
+RCT_CUSTOM_VIEW_PROPERTY(itemTypes, NSDictionary, SmartCollectionView)
+{
+    if (json && [json isKindOfClass:[NSDictionary class]]) {
+        // Merge new itemTypes into existing map (consolidate)
+        NSMutableDictionary *merged = [NSMutableDictionary dictionaryWithDictionary:view.itemTypes ?: @{}];
+        [merged addEntriesFromDictionary:(NSDictionary *)json];
+        view.itemTypes = [merged copy];
+    } else if (!json) {
+        // Clear if null/undefined
+        view.itemTypes = nil;
+    }
+}
+
 // Export events
 RCT_EXPORT_VIEW_PROPERTY(onRequestItems, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onVisibleRangeChange, RCTDirectEventBlock)
