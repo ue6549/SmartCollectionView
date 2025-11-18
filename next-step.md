@@ -319,77 +319,9 @@ Refactor into 5 focused components matching Requirements.md design:
 
 ### Overview
 
-After modularization, implement the three critical performance blockers using the new component architecture.
+After modularization, implement the critical performance optimizations using the new component architecture.
 
-### 1. Layout Cache Eviction (Priority: Critical)
-
-#### Implementation
-
-**File to Modify:**
-
-- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewLayoutCache.m`
-
-**Changes:**
-
-- Implement `evictIfNeeded:` method in LayoutCache component
-- Use distance from visible center + LRU timestamp
-- Set cache budget (3x visible range)
-- Update `putSpec:forKey:` to track timestamps
-- Call eviction automatically when cache exceeds budget
-
-**Integration:**
-
-- Scheduler calls `[layoutCache evictIfNeeded:visibleRange]` after layout updates
-- No changes needed in SmartCollectionView (already uses scheduler)
-
-#### Step 2.1: Create LayoutSpec with Validity States
-
-**Files to Create:**
-
-- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewLayoutSpec.h`
-- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewLayoutSpec.m`
-
-**Key Components:**
-
-- `typedef NS_ENUM(NSInteger, LayoutValidity) { LayoutValidityMissing, LayoutValidityEstimated, LayoutValidityExact }`
-- `@interface SmartCollectionViewLayoutSpec : NSObject`
-  - `@property CGRect frame`
-  - `@property LayoutValidity validity`
-  - `@property NSInteger version`
-  - `@property NSTimeInterval timestamp` (for LRU)
-  - `@property NSString *key` (for key-based lookup)
-
-**Integration:**
-
-- LayoutCache stores LayoutSpec objects
-- Layout computation creates specs with Estimated validity
-- After measurement, upgrade to Exact validity
-
-### 2. Key-Based Diffing (Priority: Critical)
-
-#### Implementation
-
-**Files to Modify:**
-
-- `SmartCollectionViewPOC/src/components/SmartCollectionView.tsx` - Add keyExtractor prop
-- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewLocalData.h/m` - Add key to metadata
-- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewScheduler.m` - Add key mapping and diffing
-
-**Changes:**
-
-- Scheduler maintains `keyToIndex` and `indexToKey` mappings
-- LayoutCache uses keys instead of indices
-- Scheduler implements `diffKeysAndInvalidateCache:` method
-- Called on data changes before layout recompute
-
-**Integration:**
-
-- VisibilityTracker still uses indices (for cumulative offsets)
-- Scheduler converts between keys and indices
-- LayoutCache is key-based
-- MountController receives indices (for view lookup) and keys (for cache lookup)
-
-### 3. View Recycling Optimization (Priority: Critical)
+### 1. View Recycling Optimization (Priority: Critical)
 
 #### Implementation
 
@@ -415,6 +347,144 @@ After modularization, implement the three critical performance blockers using th
 - Scheduler provides type information to MountController
 - Views are reused across indices of same type
 
+### 2. Key-Based Diffing (Priority: Critical)
+
+#### Implementation
+
+**Files to Modify:**
+
+- `SmartCollectionViewPOC/src/components/SmartCollectionView.tsx` - Add keyExtractor prop
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewLocalData.h/m` - Add key to metadata
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewScheduler.m` - Add key mapping and diffing
+
+**Changes:**
+
+- Scheduler maintains `keyToIndex` and `indexToKey` mappings
+- LayoutCache uses keys instead of indices
+- Scheduler implements `diffKeysAndInvalidateCache:` method
+- Called on data changes before layout recompute
+
+**Integration:**
+
+- VisibilityTracker still uses indices (for cumulative offsets)
+- Scheduler converts between keys and indices
+- LayoutCache is key-based
+- MountController receives indices (for view lookup) and keys (for cache lookup)
+
+#### Testing Strategy
+
+**Test Cases:**
+
+1. **Data Insertion**
+   - Insert item at beginning: verify cache invalidation, remounts
+   - Insert item in middle: verify cache invalidation, remounts
+   - Insert item at end: verify cache invalidation, remounts
+
+2. **Data Deletion**
+   - Delete item at beginning: verify cache cleanup, unmounts
+   - Delete item in middle: verify cache cleanup, unmounts
+   - Delete item at end: verify cache cleanup, unmounts
+
+3. **Data Reordering**
+   - Swap two items: verify keys maintained, views reused
+   - Reverse list: verify all keys maintained, views reused
+   - Shuffle items: verify keys maintained, minimal remounts
+
+4. **Data Updates**
+   - Update item props: verify view updated, not remounted
+   - Update item key: verify view remounted with new key
+
+5. **Edge Cases**
+   - Empty list → add items: verify initial mount
+   - Full list → clear: verify all unmounts
+   - Duplicate keys: verify error handling
+
+**Metrics to Track:**
+
+- Number of remounts vs. updates
+- Cache hit rate before/after diffing
+- Layout recompute time
+- Memory usage
+
+### 3. Placeholder/Speculative Rendering (Priority: High)
+
+**See:** `placeholder-speculative-rendering.md` for detailed proposal.
+
+#### Overview
+
+Implement placeholder (skeleton) views outside the overscan range, promoting them to real content views when entering overscan. This defers expensive native subtree creation until necessary.
+
+#### Implementation
+
+**Files to Create:**
+
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewItemShadowView.h/m`
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewItemView.h/m`
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewItemManager.h/m`
+
+**Files to Modify:**
+
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewMountController.m` - Handle promotion/demotion
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewScheduler.m` - Track placeholder ranges
+
+**Changes:**
+
+- Create item shadow view with measure function
+- Create item view with placeholder/content states
+- MountController handles promotion/demotion
+- Scheduler tracks `rangeToMount` (content) vs `rangeToRequest` (placeholders)
+
+**Integration:**
+
+- Items in `rangeToMount` have content views
+- Items in `rangeToRequest` but outside `rangeToMount` have placeholders
+- Promotion happens synchronously when item enters overscan
+- Demotion recycles content views and restores placeholders
+
+### 4. Layout Cache Eviction (Priority: Medium)
+
+#### Implementation
+
+**File to Modify:**
+
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewLayoutCache.m`
+
+**Changes:**
+
+- Implement `evictIfNeeded:` method in LayoutCache component
+- Use distance from visible center + LRU timestamp
+- Set cache budget (3x visible range)
+- Update `putSpec:forKey:` to track timestamps
+- Call eviction automatically when cache exceeds budget
+
+**Integration:**
+
+- Scheduler calls `[layoutCache evictIfNeeded:visibleRange]` after layout updates
+- No changes needed in SmartCollectionView (already uses scheduler)
+
+#### Step 4.1: Create LayoutSpec with Validity States
+
+**Files to Create:**
+
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewLayoutSpec.h`
+- `SmartCollectionViewPOC/ios/SmartCollectionView/SmartCollectionViewLayoutSpec.m`
+
+**Key Components:**
+
+- `typedef NS_ENUM(NSInteger, LayoutValidity) { LayoutValidityMissing, LayoutValidityEstimated, LayoutValidityExact }`
+- `@interface SmartCollectionViewLayoutSpec : NSObject`
+  - `@property CGRect frame`
+  - `@property LayoutValidity validity`
+  - `@property NSInteger version`
+  - `@property NSTimeInterval timestamp` (for LRU)
+  - `@property NSString *key` (for key-based lookup)
+
+**Integration:**
+
+- LayoutCache stores LayoutSpec objects
+- Layout computation creates specs with Estimated validity
+- After measurement, upgrade to Exact validity
+
 ---
 
 ## Implementation Order
@@ -433,27 +503,35 @@ After modularization, implement the three critical performance blockers using th
    - Day 3-4: Create Scheduler component
    - Day 5: Refactor SmartCollectionView, test integration
 
-### Phase 2: Performance Blockers (Weeks 3-5)
+### Phase 2: Performance Optimizations (Weeks 3-6)
 
-3. **Week 3: Layout Cache Eviction**
+3. **Week 3: View Recycling**
 
-   - Create LayoutSpec with validity states
-   - Implement eviction in LayoutCache
-   - Test memory stability
+   - Create ReusePool component
+   - Integrate with MountController
+   - Add PrepareForReuse support
+   - Test memory and performance
 
 4. **Week 4: Key-Based Diffing**
 
    - Add keyExtractor to JS API
    - Implement key mapping in Scheduler
    - Update LayoutCache to use keys
-   - Test data mutations
+   - Test data mutations (see testing strategy above)
 
-5. **Week 5: View Recycling**
+5. **Week 5: Placeholder/Speculative Rendering**
 
-   - Create ReusePool component
-   - Integrate with MountController
-   - Add PrepareForReuse support
-   - Test memory and performance
+   - Create SmartCollectionViewItemShadowView with measure function
+   - Create SmartCollectionViewItemView with placeholder/content states
+   - Create SmartCollectionViewItemManager
+   - Integrate promotion/demotion with MountController
+   - Test placeholder size matching, promotion timing, demotion recycling
+
+6. **Week 6: Layout Cache Eviction**
+
+   - Create LayoutSpec with validity states
+   - Implement eviction in LayoutCache
+   - Test memory stability
 
 ## Benefits of This Approach
 
@@ -475,10 +553,11 @@ After modularization, implement the three critical performance blockers using th
 
 **Phase 2:**
 
-- ✅ Cache doesn't exceed 3x visible range
+- ✅ Views are reused, not recreated (Recycling)
+- ✅ Data mutations work correctly with minimal remounts (Key-Based Diffing)
+- ✅ Placeholders promote smoothly without layout jank (Placeholder/Speculative Rendering)
+- ✅ Cache doesn't exceed 3x visible range (Layout Cache Eviction)
 - ✅ Memory usage stays stable
-- ✅ Data mutations work correctly
-- ✅ Views are reused, not recreated
 - ✅ Performance metrics match or beat FlatList
 
 ## Files Summary
@@ -497,14 +576,17 @@ After modularization, implement the three critical performance blockers using th
 
 **Phase 2 New Files:**
 
-- `SmartCollectionViewLayoutSpec.h/m`
-- `SmartCollectionViewReusePool.h/m`
+- `SmartCollectionViewReusePool.h/m` (Week 3: Recycling)
+- `SmartCollectionViewItemShadowView.h/m` (Week 5: Placeholder)
+- `SmartCollectionViewItemView.h/m` (Week 5: Placeholder)
+- `SmartCollectionViewItemManager.h/m` (Week 5: Placeholder)
+- `SmartCollectionViewLayoutSpec.h/m` (Week 6: Cache Eviction)
 
 **Phase 2 Modified Files:**
 
+- `SmartCollectionViewMountController.m` (add recycling, promotion/demotion)
+- `SmartCollectionViewScheduler.m` (add key mapping, placeholder range tracking)
 - `SmartCollectionViewLayoutCache.m` (add eviction)
-- `SmartCollectionViewScheduler.m` (add key mapping)
-- `SmartCollectionViewMountController.m` (add recycling)
 - `SmartCollectionView.tsx` (add keyExtractor, getItemType)
 - `SmartCollectionViewLocalData.h/m` (add key)
 
