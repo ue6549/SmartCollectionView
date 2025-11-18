@@ -21,6 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) NSInteger maxToRenderPerBatch;
 @property (nonatomic, assign) NSInteger overscanCount;
 @property (nonatomic, assign) CGFloat overscanLength;
+@property (nonatomic, assign) CGFloat shadowBufferMultiplier; // Multiplier for request range beyond mount range (default: 2.0)
 @property (nonatomic, assign, getter=isHorizontal) BOOL horizontal;
 
 @property (nonatomic, assign) CGPoint scrollOffset;
@@ -40,7 +41,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSRange)visibleRange;
 - (NSRange)rangeToMount;
+- (NSRange)rangeToRequest; // Larger range for requesting items (shadow buffer)
 - (void)requestItemsIfNeeded;
+// Optional: allow owner to inform scheduler that certain indices were requested (to dedupe)
+- (void)noteItemsRequested:(NSArray<NSNumber *> *)indices;
 
 @end
 

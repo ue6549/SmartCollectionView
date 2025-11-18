@@ -38,9 +38,9 @@ const HorizontalListWidget: React.FC<HorizontalListWidgetProps> = ({
             renderItem={renderProductCard}
             horizontal
             initialNumToRender={4}
-            maxToRenderPerBatch={2}
+            maxToRenderPerBatch={3}
             overscanCount={1}
-            overscanLength={0.5}
+            overscanLength={2}
             estimatedItemSize={{width: screenWidth * 0.4 + 16, height: 200}}
           />
         </View>

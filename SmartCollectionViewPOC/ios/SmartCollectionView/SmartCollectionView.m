@@ -37,6 +37,8 @@
 @property (nonatomic, strong, readwrite) SmartCollectionViewMountController *mountController;
 @property (nonatomic, strong, readwrite) SmartCollectionViewEventBus *eventBus;
 @property (nonatomic, strong, readwrite) SmartCollectionViewScheduler *scheduler;
+@property (nonatomic, strong) NSMutableSet<NSNumber *> *appliedIndicesThisTick;
+@property (nonatomic, assign) BOOL hasScrolled; // Track if user has scrolled (to switch from initial to scroll props)
 
 - (NSInteger)itemCount;
 - (CGSize)sizeForItemAtIndex:(NSInteger)index;
@@ -44,6 +46,8 @@
 - (CGSize)metadataSizeForItemAtIndex:(NSInteger)index;
 - (SmartCollectionViewWrapperView *)dequeueWrapper;
 - (void)recycleWrapper:(SmartCollectionViewWrapperView *)wrapper;
+- (void)ensureWrapperPoolCapacity;
+- (NSInteger)estimatedItemsPerViewport;
 
 @end
 
@@ -79,6 +83,12 @@
     _maxToRenderPerBatch = 10;
     _overscanCount = 5;
     _overscanLength = 1.0;
+    _shadowBufferMultiplier = 2.0; // Default: request 2x the mount range
+    _initialMaxToRenderPerBatch = 0; // 0 = use maxToRenderPerBatch
+    _initialOverscanCount = 0; // 0 = use overscanCount
+    _initialOverscanLength = 0; // 0 = use overscanLength
+    _initialShadowBufferMultiplier = 0; // 0 = use shadowBufferMultiplier
+    _hasScrolled = NO;
     _horizontal = YES;
     _estimatedItemSize = CGSizeMake(100, 80);
     _totalItemCount = 0;
@@ -109,13 +119,42 @@
                                                            eventBus:_eventBus];
     _scheduler.horizontal = _horizontal;
     _scheduler.initialNumToRender = _initialNumToRender;
-    _scheduler.maxToRenderPerBatch = _maxToRenderPerBatch;
-    _scheduler.overscanCount = _overscanCount;
-    _scheduler.overscanLength = _overscanLength;
+    [self updateSchedulerWithEffectiveValues];
+    _appliedIndicesThisTick = [NSMutableSet set];
     
     SCVLog(@"SmartCollectionView initialized with scrollView");
     // BREAKPOINT: Set breakpoint here to check reactTag after initialization
     // Note: reactTag might not be set immediately, check again in didMoveToWindow
+}
+
+- (NSInteger)estimatedItemsPerViewport
+{
+    if (!_horizontal) {
+        return 1;
+    }
+    CGFloat viewport = MAX(self.bounds.size.width, 1);
+    CGFloat item = MAX(_estimatedItemSize.width, 1);
+    NSInteger per = (NSInteger)ceil(viewport / item);
+    return MAX(1, per);
+}
+
+- (void)ensureWrapperPoolCapacity
+{
+    // Target pool = (viewport items + overscan*2) * multiplier
+    static const NSInteger kPoolMultiplier = 8; // 5-10x viewport suggested; use 8 as default
+    NSInteger perViewport = [self estimatedItemsPerViewport];
+    NSInteger base = perViewport + (_overscanCount * 2);
+    NSInteger target = MAX(8, base * kPoolMultiplier);
+    
+    NSInteger available = (NSInteger)_wrapperReusePool.count + (NSInteger)_mountedIndices.count;
+    NSInteger deficit = target - available;
+    if (deficit > 0) {
+        for (NSInteger i = 0; i < deficit; i++) {
+            SmartCollectionViewWrapperView *wrapper = [[SmartCollectionViewWrapperView alloc] initWithFrame:CGRectZero];
+            [_wrapperReusePool addObject:wrapper];
+        }
+        SCVLog(@"Prewarmed wrapper pool by %ld to size %lu (target %ld)", (long)deficit, (unsigned long)_wrapperReusePool.count, (long)target);
+    }
 }
 
 - (void)didMoveToWindow
@@ -154,6 +193,9 @@
     SCVLog(@"layoutSubviews called, bounds: %@, reactSubviews count: %lu", NSStringFromCGRect(self.bounds), (unsigned long)self.reactSubviews.count);
     self.scheduler.viewportSize = self.bounds.size;
     self.scheduler.scrollOffset = self.scrollView.contentOffset;
+    
+    // Ensure we have enough wrappers to avoid rapid reuse churn on fast scrolls
+    [self ensureWrapperPoolCapacity];
     
     // Diagnostic: Log reactSubviews to see what React Native thinks our children are
     if (self.reactSubviews.count > 0) {
@@ -336,16 +378,6 @@
         SCVLog(@"sizeForItemAtIndex %ld: using metadata size %@", (long)index, NSStringFromCGSize(metadataSize));
         return metadataSize;
     }
-
-    if (index < _virtualItems.count) {
-        UIView *item = _virtualItems[index];
-        CGSize actualSize = [self actualSizeForItem:item];
-        if (!CGSizeEqualToSize(actualSize, CGSizeZero)) {
-            SCVLog(@"sizeForItemAtIndex %ld: using actual size %@", (long)index, NSStringFromCGSize(actualSize));
-            return actualSize;
-        }
-    }
-    
     SCVLog(@"sizeForItemAtIndex %ld: using estimated size %@", (long)index, NSStringFromCGSize(_estimatedItemSize));
     return _estimatedItemSize;
 }
@@ -378,11 +410,6 @@
         }
     }
 
-    if (index < _virtualItems.count) {
-        SCVLog(@"viewForItemAtIndex %ld: using virtualItems[%ld]", (long)index, (long)index);
-        return _virtualItems[index];
-    }
-    
     SCVLog(@"viewForItemAtIndex %ld: returning nil", (long)index);
     return nil;
 }
@@ -458,17 +485,7 @@
         CGSize itemSize = [self sizeForItemAtIndex:i];
         [actualSizes addObject:[NSValue valueWithCGSize:itemSize]];
         
-        // If we have an actual mounted item, use its real size instead of metadata/estimated
-        if (i < _virtualItems.count) {
-            UIView *item = _virtualItems[i];
-            CGSize actualSize = [self actualSizeForItem:item];
-            if (!CGSizeEqualToSize(actualSize, CGSizeZero) && actualSize.height > itemSize.height) {
-                // Use the larger actual size if available
-                itemSize = actualSize;
-                actualSizes[i] = [NSValue valueWithCGSize:itemSize];
-                SCVLog(@"Using actual mounted item size %@ instead of metadata/estimated for index %ld", NSStringFromCGSize(actualSize), (long)i);
-            }
-        }
+        // Do not read from virtualItems by position; rely on metadata size for now
         
         if (itemSize.height > maxHeight) {
             maxHeight = itemSize.height;
@@ -576,11 +593,15 @@
     // TODO: When adding other layouts, extract horizontal-specific logic
     
     CGFloat currentOffset = 0;
-    
-    // Calculate offset for items before this range (horizontal layout)
-    for (NSInteger i = 0; i < range.location; i++) {
-        CGSize itemSize = [self estimatedSizeForItemAtIndex:i];
-        currentOffset += itemSize.width; // Horizontal: accumulate width
+    // Use cumulative offsets if available to avoid O(n) prefix sum
+    if (range.location > 0 && _cumulativeOffsets.count >= range.location) {
+        currentOffset = [_cumulativeOffsets[range.location - 1] doubleValue];
+    } else {
+        // Fallback: small prefix sum only if needed
+        for (NSInteger i = 0; i < range.location; i++) {
+            CGSize itemSize = [self estimatedSizeForItemAtIndex:i];
+            currentOffset += itemSize.width;
+        }
     }
     
     NSInteger totalCount = [self itemCount];
@@ -730,6 +751,7 @@
     }
 
     wrapper.reactTag = item.reactTag;
+    wrapper.currentIndex = @(index);
     wrapper.frame = frame;
 
     if (wrapper.superview != _containerView) {
@@ -826,6 +848,7 @@
             }
             [wrapper removeFromSuperview];
             wrapper.reactTag = nil;
+            wrapper.currentIndex = nil;
             [self recycleWrapper:wrapper];
             [_indexToWrapper removeObjectForKey:@(index)];
         }
@@ -849,8 +872,61 @@
     return NSMakeRange(start, end - start + 1);
 }
 
+- (void)updateSchedulerWithEffectiveValues
+{
+    // Get effective values based on scroll state
+    NSInteger effectiveMaxBatch = [self effectiveMaxToRenderPerBatch];
+    NSInteger effectiveOverscanCount = [self effectiveOverscanCount];
+    CGFloat effectiveOverscanLength = [self effectiveOverscanLength];
+    CGFloat effectiveShadowBuffer = [self effectiveShadowBufferMultiplier];
+    
+    self.scheduler.maxToRenderPerBatch = effectiveMaxBatch;
+    self.scheduler.overscanCount = effectiveOverscanCount;
+    self.scheduler.overscanLength = effectiveOverscanLength;
+    self.scheduler.shadowBufferMultiplier = effectiveShadowBuffer;
+}
+
+- (NSInteger)effectiveMaxToRenderPerBatch
+{
+    if (!_hasScrolled && _initialMaxToRenderPerBatch > 0) {
+        return _initialMaxToRenderPerBatch;
+    }
+    return _maxToRenderPerBatch;
+}
+
+- (NSInteger)effectiveOverscanCount
+{
+    if (!_hasScrolled && _initialOverscanCount > 0) {
+        return _initialOverscanCount;
+    }
+    return _overscanCount;
+}
+
+- (CGFloat)effectiveOverscanLength
+{
+    if (!_hasScrolled) {
+        // If either initial overscan value is provided, use that specific one
+        if (_initialOverscanCount > 0) {
+            return 0; // Count takes precedence, ignore length
+        }
+        if (_initialOverscanLength > 0) {
+            return _initialOverscanLength;
+        }
+    }
+    return _overscanLength;
+}
+
+- (CGFloat)effectiveShadowBufferMultiplier
+{
+    if (!_hasScrolled && _initialShadowBufferMultiplier > 0) {
+        return _initialShadowBufferMultiplier;
+    }
+    return _shadowBufferMultiplier;
+}
+
 - (void)requestItemsForVisibleRange
 {
+    [self updateSchedulerWithEffectiveValues]; // Update before requesting
     [self.scheduler requestItemsIfNeeded];
 }
 
@@ -858,6 +934,12 @@
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+    // Mark as scrolled on first scroll
+    if (!_hasScrolled && (scrollView.contentOffset.x != 0 || scrollView.contentOffset.y != 0)) {
+        _hasScrolled = YES;
+        [self updateSchedulerWithEffectiveValues]; // Switch to scroll props
+    }
+    
     _scrollOffset = scrollView.contentOffset.x; // Horizontal scroll offset
     self.scheduler.scrollOffset = scrollView.contentOffset;
     self.scheduler.viewportSize = scrollView.bounds.size;
@@ -951,6 +1033,7 @@
     }
     
     self.isUpdatingVisibleItems = YES;
+    [self.appliedIndicesThisTick removeAllObjects];
     
     NSRange visibleRange = [self visibleItemRange];
     NSRange rangeToMount = [self computeRangeToLayout];
@@ -996,12 +1079,7 @@
         }
     }
     
-    SCVLog(@"Unmounting %lu items: %@", (unsigned long)indicesToUnmount.count, indicesToUnmount);
-    for (NSNumber *indexNum in indicesToUnmount) {
-        [self unmountItemAtIndex:[indexNum integerValue]];
-    }
-    
-    // Mount items that are ready
+    // Mount items that are ready (mount before unmount to reduce churn)
     SCVLog(@"Mounting %lu ready items: %@", (unsigned long)itemsReadyToMount.count, itemsReadyToMount);
     SCVLog(@"Currently mounted indices: %@", _mountedIndices);
     
@@ -1011,6 +1089,9 @@
     
     for (NSNumber *indexNumber in itemsReadyToMount) {
         NSInteger i = [indexNumber integerValue];
+        if ([self.appliedIndicesThisTick containsObject:indexNumber]) {
+            continue; // assignment dedupe per tick
+        }
         SmartCollectionViewLayoutSpec *spec = [self.layoutCache specForIndex:i];
         CGRect frame = spec ? [spec frame] : CGRectZero;
 
@@ -1073,6 +1154,13 @@
             [self mountItemAtIndex:i];
             newMountCount++;
         }
+        [self.appliedIndicesThisTick addObject:indexNumber];
+    }
+    
+    // Now unmount after mounts to avoid immediate reuse of just-unmounted wrappers
+    SCVLog(@"Unmounting %lu items: %@", (unsigned long)indicesToUnmount.count, indicesToUnmount);
+    for (NSNumber *indexNum in indicesToUnmount) {
+        [self unmountItemAtIndex:[indexNum integerValue]];
     }
     
     SCVLog(@"Mount summary: %ld already mounted, %ld updated, %ld newly mounted", (long)mountedCount, (long)updatedCount, (long)newMountCount);
@@ -1088,14 +1176,9 @@
 
 - (SmartCollectionViewWrapperView *)dequeueWrapper
 {
-    SmartCollectionViewWrapperView *wrapper = _wrapperReusePool.lastObject;
-    if (wrapper) {
-        [_wrapperReusePool removeLastObject];
-        SCVLog(@"Reusing wrapper %@", wrapper);
-    } else {
-        wrapper = [[SmartCollectionViewWrapperView alloc] initWithFrame:CGRectZero];
-        SCVLog(@"Creating new wrapper %@", wrapper);
-    }
+    // Disable reuse for now: always create a fresh wrapper to avoid stale child flashes
+    SmartCollectionViewWrapperView *wrapper = [[SmartCollectionViewWrapperView alloc] initWithFrame:CGRectZero];
+    [wrapper.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
     return wrapper;
 }
 
@@ -1104,11 +1187,11 @@
     if (!wrapper) {
         return;
     }
+    // Drop wrappers instead of pooling to keep behavior simple and avoid reuse artifacts
     [wrapper.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
     wrapper.frame = CGRectZero;
     wrapper.reactTag = nil;
-    [_wrapperReusePool addObject:wrapper];
-    SCVLog(@"Recycled wrapper %@ (pool size %lu)", wrapper, (unsigned long)_wrapperReusePool.count);
+    [wrapper removeFromSuperview];
 }
 
 - (void)setHorizontal:(BOOL)horizontal
@@ -1152,7 +1235,7 @@
         return;
     }
     _overscanCount = overscanCount;
-    self.scheduler.overscanCount = overscanCount;
+    [self updateSchedulerWithEffectiveValues];
 }
 
 - (void)setOverscanLength:(CGFloat)overscanLength
@@ -1161,7 +1244,52 @@
         return;
     }
     _overscanLength = overscanLength;
-    self.scheduler.overscanLength = overscanLength;
+    [self updateSchedulerWithEffectiveValues];
+}
+
+- (void)setShadowBufferMultiplier:(CGFloat)shadowBufferMultiplier
+{
+    if (fabs(_shadowBufferMultiplier - shadowBufferMultiplier) < DBL_EPSILON) {
+        return;
+    }
+    _shadowBufferMultiplier = shadowBufferMultiplier;
+    [self updateSchedulerWithEffectiveValues];
+}
+
+- (void)setInitialMaxToRenderPerBatch:(NSInteger)initialMaxToRenderPerBatch
+{
+    if (_initialMaxToRenderPerBatch == initialMaxToRenderPerBatch) {
+        return;
+    }
+    _initialMaxToRenderPerBatch = initialMaxToRenderPerBatch;
+    [self updateSchedulerWithEffectiveValues];
+}
+
+- (void)setInitialOverscanCount:(NSInteger)initialOverscanCount
+{
+    if (_initialOverscanCount == initialOverscanCount) {
+        return;
+    }
+    _initialOverscanCount = initialOverscanCount;
+    [self updateSchedulerWithEffectiveValues];
+}
+
+- (void)setInitialOverscanLength:(CGFloat)initialOverscanLength
+{
+    if (fabs(_initialOverscanLength - initialOverscanLength) < DBL_EPSILON) {
+        return;
+    }
+    _initialOverscanLength = initialOverscanLength;
+    [self updateSchedulerWithEffectiveValues];
+}
+
+- (void)setInitialShadowBufferMultiplier:(CGFloat)initialShadowBufferMultiplier
+{
+    if (fabs(_initialShadowBufferMultiplier - initialShadowBufferMultiplier) < DBL_EPSILON) {
+        return;
+    }
+    _initialShadowBufferMultiplier = initialShadowBufferMultiplier;
+    [self updateSchedulerWithEffectiveValues];
 }
 
 - (void)setInitialNumToRender:(NSInteger)initialNumToRender
@@ -1179,7 +1307,7 @@
         return;
     }
     _maxToRenderPerBatch = maxToRenderPerBatch;
-    self.scheduler.maxToRenderPerBatch = maxToRenderPerBatch;
+    [self updateSchedulerWithEffectiveValues];
 }
 
 - (void)syncPropsToShadowView

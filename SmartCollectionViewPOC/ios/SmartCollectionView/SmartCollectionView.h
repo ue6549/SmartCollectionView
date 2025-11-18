@@ -14,6 +14,14 @@
 @property (nonatomic, assign) NSInteger maxToRenderPerBatch;
 @property (nonatomic, assign) NSInteger overscanCount;
 @property (nonatomic, assign) CGFloat overscanLength;
+@property (nonatomic, assign) CGFloat shadowBufferMultiplier; // Multiplier for request range beyond mount range (default: 2.0)
+
+// Initial mount optimization (optional, overrides main props during initial mount)
+@property (nonatomic, assign) NSInteger initialMaxToRenderPerBatch; // Default: 0 (use maxToRenderPerBatch)
+@property (nonatomic, assign) NSInteger initialOverscanCount; // Default: 0 (use overscanCount)
+@property (nonatomic, assign) CGFloat initialOverscanLength; // Default: 0 (use overscanLength)
+@property (nonatomic, assign) CGFloat initialShadowBufferMultiplier; // Default: 0 (use shadowBufferMultiplier)
+
 @property (nonatomic, assign) BOOL horizontal;
 @property (nonatomic, assign) CGSize estimatedItemSize;
 @property (nonatomic, assign) NSInteger totalItemCount;

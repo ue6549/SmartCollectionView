@@ -25,6 +25,11 @@ interface SmartCollectionViewNativeProps {
   maxToRenderPerBatch?: number;
   overscanCount?: number;
   overscanLength?: number;
+  shadowBufferMultiplier?: number; // Multiplier for request range beyond mount range (default: 2.0)
+  initialMaxToRenderPerBatch?: number; // Optional: override maxToRenderPerBatch during initial mount
+  initialOverscanCount?: number; // Optional: override overscanCount during initial mount
+  initialOverscanLength?: number; // Optional: override overscanLength during initial mount
+  initialShadowBufferMultiplier?: number; // Optional: override shadowBufferMultiplier during initial mount
   
   // Layout
   horizontal?: boolean;
@@ -52,6 +57,11 @@ interface SmartCollectionViewProps {
   maxToRenderPerBatch?: number;       // Default: 10
   overscanCount?: number;             // Items before/after viewport, default: 5
   overscanLength?: number;            // Alternative: in screen widths/heights, default: 1.0
+  shadowBufferMultiplier?: number;    // Multiplier for request range beyond mount range, default: 2.0
+  initialMaxToRenderPerBatch?: number; // Optional: override maxToRenderPerBatch during initial mount
+  initialOverscanCount?: number;      // Optional: override overscanCount during initial mount
+  initialOverscanLength?: number;     // Optional: override overscanLength during initial mount
+  initialShadowBufferMultiplier?: number; // Optional: override shadowBufferMultiplier during initial mount
   
   // Layout
   horizontal?: boolean;
@@ -82,6 +92,11 @@ const SmartCollectionView: React.FC<SmartCollectionViewProps> = ({
   maxToRenderPerBatch = 1,
   overscanCount = 1,
   overscanLength = 2,
+  shadowBufferMultiplier = 2.0,
+  initialMaxToRenderPerBatch,
+  initialOverscanCount,
+  initialOverscanLength,
+  initialShadowBufferMultiplier,
   horizontal = true,
   estimatedItemSize = {width: 100, height: 80},
   useFlatList = false,
@@ -141,6 +156,11 @@ const SmartCollectionView: React.FC<SmartCollectionViewProps> = ({
     maxToRenderPerBatch,
     overscanCount,
     overscanLength,
+    shadowBufferMultiplier,
+    ...(initialMaxToRenderPerBatch !== undefined && { initialMaxToRenderPerBatch }),
+    ...(initialOverscanCount !== undefined && { initialOverscanCount }),
+    ...(initialOverscanLength !== undefined && { initialOverscanLength }),
+    ...(initialShadowBufferMultiplier !== undefined && { initialShadowBufferMultiplier }),
     horizontal,
     estimatedItemSize,
     onRequestItems: handleRequestItems,
