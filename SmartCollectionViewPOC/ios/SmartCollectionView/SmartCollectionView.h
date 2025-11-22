@@ -25,6 +25,7 @@
 
 @property (nonatomic, assign) BOOL horizontal;
 @property (nonatomic, assign) CGSize estimatedItemSize;
+@property (nonatomic, assign) CGFloat itemSpacing; // Spacing between items along the main scrolling axis (horizontal for horizontal layout, vertical for vertical layout). Default: 0
 @property (nonatomic, assign) NSInteger totalItemCount;
 
 // Recycling
@@ -45,7 +46,7 @@
 @property (nonatomic, strong, readonly) UIView *containerView;
 
 // Data and layout
-@property (nonatomic, strong, readonly) NSMutableArray<UIView *> *virtualItems;
+@property (nonatomic, strong, readonly) NSMutableDictionary<NSNumber *, UIView *> *virtualItems;
 @property (nonatomic, strong, readonly) NSMutableArray<NSNumber *> *cumulativeOffsets;
 @property (nonatomic, assign, readonly) NSRange lastComputedRange;
 @property (nonatomic, assign, readonly) BOOL needsFullRecompute;
@@ -66,7 +67,7 @@
 
 // Methods
 - (void)addVirtualItem:(UIView *)item atIndex:(NSInteger)index;
-- (void)removeVirtualItem:(UIView *)item;
+- (void)removeVirtualItem:(UIView *)item atIndex:(NSInteger)index;
 - (void)registerChildView:(UIView *)view atIndex:(NSInteger)index;
 - (void)unregisterChildView:(UIView *)view;
 - (void)updateWithLocalData:(id)localData;

@@ -1,6 +1,7 @@
 #import "SmartCollectionViewManager.h"
 #import "SmartCollectionView.h"
 #import "SmartCollectionViewShadowView.h"
+#import "SmartCollectionViewItemView.h"
 #import "SmartCollectionViewLocalData.h"
 #import <React/RCTUIManager.h>
 #import <React/RCTBridge.h>
@@ -11,6 +12,9 @@
 //#else
 #define SCVManagerLog(fmt, ...)
 #endif
+
+// Reuse pool logs are always enabled (not conditional on DEBUG)
+#define SCVReusePoolLog(fmt, ...) // RCTLogInfo(@"[SCV-ReusePool] " fmt, ##__VA_ARGS__)
 
 @implementation SmartCollectionViewManager
 
@@ -44,19 +48,66 @@ RCT_EXPORT_VIEW_PROPERTY(initialOverscanLength, CGFloat)
 RCT_EXPORT_VIEW_PROPERTY(initialShadowBufferMultiplier, CGFloat)
 RCT_EXPORT_VIEW_PROPERTY(horizontal, BOOL)
 RCT_EXPORT_VIEW_PROPERTY(estimatedItemSize, CGSize)
+RCT_EXPORT_VIEW_PROPERTY(itemSpacing, CGFloat)
 RCT_EXPORT_VIEW_PROPERTY(totalItemCount, NSInteger)
 
 // Custom property for itemTypes (dictionary of index -> itemType)
 RCT_CUSTOM_VIEW_PROPERTY(itemTypes, NSDictionary, SmartCollectionView)
 {
     if (json && [json isKindOfClass:[NSDictionary class]]) {
-        // Merge new itemTypes into existing map (consolidate)
-        NSMutableDictionary *merged = [NSMutableDictionary dictionaryWithDictionary:view.itemTypes ?: @{}];
-        [merged addEntriesFromDictionary:(NSDictionary *)json];
+        NSDictionary *incoming = (NSDictionary *)json;
+        
+        NSMutableDictionary<NSNumber *, NSString *> *normalizedEntries = [NSMutableDictionary dictionary];
+        NSMutableSet<NSNumber *> *indicesToRemove = [NSMutableSet set];
+        
+        [incoming enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
+            NSNumber *indexKey = nil;
+            if ([key isKindOfClass:[NSNumber class]]) {
+                indexKey = (NSNumber *)key;
+            } else if ([key respondsToSelector:@selector(integerValue)]) {
+                indexKey = @([key integerValue]);
+            }
+            
+            if (!indexKey) {
+                SCVReusePoolLog(@"⚠️  Ignoring itemTypes entry with non-numeric key: %@", key);
+                return;
+            }
+            
+            if (!obj || [obj isKindOfClass:[NSNull class]]) {
+                [indicesToRemove addObject:indexKey];
+                return;
+            }
+            
+            if (![obj isKindOfClass:[NSString class]]) {
+                SCVReusePoolLog(@"⚠️  Ignoring itemTypes value for index %@ due to unsupported class %@", indexKey, NSStringFromClass([obj class]));
+                return;
+            }
+            
+            normalizedEntries[indexKey] = (NSString *)obj;
+        }];
+        
+        if (normalizedEntries.count == 0 && indicesToRemove.count == 0) {
+            // Nothing to merge/remove
+            return;
+        }
+        
+        NSMutableDictionary<NSNumber *, NSString *> *merged = [NSMutableDictionary dictionaryWithDictionary:view.itemTypes ?: @{}];
+        for (NSNumber *indexKey in indicesToRemove) {
+            [merged removeObjectForKey:indexKey];
+        }
+        [normalizedEntries enumerateKeysAndObjectsUsingBlock:^(NSNumber *key, NSString *obj, BOOL *stop) {
+            merged[key] = obj;
+        }];
+        
         view.itemTypes = [merged copy];
+        SCVReusePoolLog(@"✅ itemTypes map updated: %lu entries (merged %lu new, removed %lu)",
+                        (unsigned long)merged.count,
+                        (unsigned long)normalizedEntries.count,
+                        (unsigned long)indicesToRemove.count);
     } else if (!json) {
         // Clear if null/undefined
         view.itemTypes = nil;
+        SCVReusePoolLog(@"⚠️  itemTypes map cleared (set to nil)");
     }
 }
 
@@ -81,6 +132,10 @@ RCT_EXPORT_VIEW_PROPERTY(onScrollEndDecelerating, RCTDirectEventBlock)
     
     if ([parentView isKindOfClass:[SmartCollectionView class]]) {
         SmartCollectionView *smartView = (SmartCollectionView *)parentView;
+        if ([subview isKindOfClass:[SmartCollectionViewItemView class]]) {
+            SmartCollectionViewItemView *itemView = (SmartCollectionViewItemView *)subview;
+            itemView.parentCollectionView = smartView;
+        }
         SCVManagerLog(@"✅ insertReactSubview - Registering child at index %ld, subview tag: %@, parent tag: %@", (long)index, subview.reactTag, smartView.reactTag);
         [smartView registerChildView:subview atIndex:index];
     } else {
@@ -96,6 +151,10 @@ RCT_EXPORT_VIEW_PROPERTY(onScrollEndDecelerating, RCTDirectEventBlock)
         SmartCollectionView *smartView = (SmartCollectionView *)parentView;
         SCVManagerLog(@"removeReactSubview, subview tag: %@", subview.reactTag);
         [smartView unregisterChildView:subview];
+        if ([subview isKindOfClass:[SmartCollectionViewItemView class]]) {
+            SmartCollectionViewItemView *itemView = (SmartCollectionViewItemView *)subview;
+            itemView.parentCollectionView = nil;
+        }
     } else {
         SCVManagerLog(@"ERROR: removeReactSubview - parent is not SmartCollectionView, got: %@", NSStringFromClass([parentView class]));
     }

@@ -22,6 +22,11 @@ const HorizontalListWidget: React.FC<HorizontalListWidgetProps> = ({
     return <ProductCard key={item.id} product={item} index={index} />;
   };
   
+  // Item type function for recycling - all items are ProductCard type
+  const getItemType = (item: ProductCardType, index: number): string => {
+    return 'ProductCard';
+  };
+  
   if (useSmartCollection) {
     return (
       <View style={styles.container}>
@@ -36,6 +41,7 @@ const HorizontalListWidget: React.FC<HorizontalListWidgetProps> = ({
           <SmartCollectionView
             data={products}
             renderItem={renderProductCard}
+            getItemType={getItemType}
             horizontal
             initialNumToRender={4}
             maxToRenderPerBatch={3}

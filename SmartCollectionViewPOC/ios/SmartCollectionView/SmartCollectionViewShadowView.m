@@ -15,6 +15,38 @@
 #define SCVShadowLog(fmt, ...)
 #endif
 
+static CGSize SCVEffectiveSizeForShadowView(RCTShadowView *shadowView)
+{
+    if (!shadowView) {
+        return CGSizeZero;
+    }
+    
+    RCTLayoutMetrics metrics = shadowView.layoutMetrics;
+    // Use frame.size - this includes margins, borders, and padding
+    // This matches what the actual UIView's frame.size will be after React Native layout
+    CGSize size = metrics.frame.size;
+    
+    if (CGSizeEqualToSize(size, CGSizeZero)) {
+        // Fallback to contentFrame if frame is zero, but log it
+        size = metrics.contentFrame.size;
+        SCVShadowLog(@"⚠️ Using contentFrame.size as fallback (frame.size was zero)");
+    }
+    
+    if (!CGSizeEqualToSize(size, CGSizeZero)) {
+        return size;
+    }
+    
+    // Recursively check children
+    for (RCTShadowView *child in shadowView.reactSubviews) {
+        CGSize childSize = SCVEffectiveSizeForShadowView(child);
+        if (!CGSizeEqualToSize(childSize, CGSizeZero)) {
+            return childSize;
+        }
+    }
+    
+    return CGSizeZero;
+}
+
 @interface SmartCollectionViewShadowView ()
 
 @property (nonatomic, strong) NSMutableArray<RCTShadowView *> *mutableChildShadowViews;
@@ -182,14 +214,8 @@
 
     NSInteger index = 0;
     for (RCTShadowView *shadowView in _mutableChildShadowViews) {
-        RCTLayoutMetrics metrics = shadowView.layoutMetrics;
-        CGSize size = metrics.frame.size;
-
-        if (CGSizeEqualToSize(size, CGSizeZero)) {
-            // Fallback to intrinsic content size if available
-            size = shadowView.layoutMetrics.contentFrame.size;
-        }
-
+        CGSize size = SCVEffectiveSizeForShadowView(shadowView);
+        
         SmartCollectionViewItemMetadata *metadata = [[SmartCollectionViewItemMetadata alloc] initWithReactTag:shadowView.reactTag
                                                                                                             size:size
                                                                                                            index:index
@@ -275,13 +301,7 @@
     
     // Iterate through child shadow views and find max height
     for (RCTShadowView *childShadow in _mutableChildShadowViews) {
-        RCTLayoutMetrics metrics = childShadow.layoutMetrics;
-        CGSize size = metrics.frame.size;
-        
-        if (CGSizeEqualToSize(size, CGSizeZero)) {
-            // Try contentFrame if frame is zero
-            size = metrics.contentFrame.size;
-        }
+        CGSize size = SCVEffectiveSizeForShadowView(childShadow);
         
         if (size.height > 0) {
             itemsWithValidHeight++;

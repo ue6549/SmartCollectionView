@@ -38,6 +38,12 @@
 		9DF2A1082F1234567890ABCD /* SmartCollectionViewEventBus.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DF2A0072F1234567890ABCD /* SmartCollectionViewEventBus.h */; };
 		9DF2A1092F1234567890ABCD /* SmartCollectionViewReusePool.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DF2A10C2F1234567890ABCD /* SmartCollectionViewReusePool.m */; };
 		9DF2A10B2F1234567890ABCD /* SmartCollectionViewReusePool.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DF2A10A2F1234567890ABCD /* SmartCollectionViewReusePool.h */; };
+		9DF3B0A32F67B40000ABCD01 /* SmartCollectionViewItemView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DF3B0A22F67B40000ABCD01 /* SmartCollectionViewItemView.m */; };
+		9DF3B0A42F67B40000ABCD01 /* SmartCollectionViewItemView.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DF3B0A12F67B40000ABCD01 /* SmartCollectionViewItemView.h */; };
+		9DF3B0B32F67B40000ABCD01 /* SmartCollectionViewItemShadowView.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DF3B0A52F67B40000ABCD01 /* SmartCollectionViewItemShadowView.h */; };
+		9DF3B0AD2F67B40000ABCD01 /* SmartCollectionViewItemShadowView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DF3B0A62F67B40000ABCD01 /* SmartCollectionViewItemShadowView.m */; };
+		9DF3B0AA2F67B40000ABCD01 /* SmartCollectionViewItemManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 9DF3B0A82F67B40000ABCD01 /* SmartCollectionViewItemManager.m */; };
+		9DF3B0AB2F67B40000ABCD01 /* SmartCollectionViewItemManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DF3B0A72F67B40000ABCD01 /* SmartCollectionViewItemManager.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +100,12 @@
 		9DF2A0082F1234567890ABCD /* SmartCollectionViewEventBus.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewEventBus.m; sourceTree = "<group>"; };
 		9DF2A10A2F1234567890ABCD /* SmartCollectionViewReusePool.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewReusePool.h; sourceTree = "<group>"; };
 		9DF2A10C2F1234567890ABCD /* SmartCollectionViewReusePool.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewReusePool.m; sourceTree = "<group>"; };
+		9DF3B0A12F67B40000ABCD01 /* SmartCollectionViewItemView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewItemView.h; sourceTree = "<group>"; };
+		9DF3B0A22F67B40000ABCD01 /* SmartCollectionViewItemView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewItemView.m; sourceTree = "<group>"; };
+		9DF3B0A52F67B40000ABCD01 /* SmartCollectionViewItemShadowView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewItemShadowView.h; sourceTree = "<group>"; };
+		9DF3B0A62F67B40000ABCD01 /* SmartCollectionViewItemShadowView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewItemShadowView.m; sourceTree = "<group>"; };
+		9DF3B0A72F67B40000ABCD01 /* SmartCollectionViewItemManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SmartCollectionViewItemManager.h; sourceTree = "<group>"; };
+		9DF3B0A82F67B40000ABCD01 /* SmartCollectionViewItemManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SmartCollectionViewItemManager.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -194,6 +206,12 @@
 			children = (
 				9DDB2FAF2EAE8F3F00D5E7F1 /* SmartCollectionView.h */,
 				9DDB2FB02EAE8F3F00D5E7F1 /* SmartCollectionView.m */,
+				9DF3B0A12F67B40000ABCD01 /* SmartCollectionViewItemView.h */,
+				9DF3B0A22F67B40000ABCD01 /* SmartCollectionViewItemView.m */,
+				9DF3B0A52F67B40000ABCD01 /* SmartCollectionViewItemShadowView.h */,
+				9DF3B0A62F67B40000ABCD01 /* SmartCollectionViewItemShadowView.m */,
+				9DF3B0A72F67B40000ABCD01 /* SmartCollectionViewItemManager.h */,
+				9DF3B0A82F67B40000ABCD01 /* SmartCollectionViewItemManager.m */,
 				9DDB2FC42EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.h */,
 				9DDB2FC52EB61D9A00D5E7F1 /* SmartCollectionViewShadowView.m */,
 				9DDB309F2EB63C1E00D5E7F1 /* SmartCollectionViewLocalData.h */,
@@ -252,6 +270,9 @@
 				9DF2A1062F1234567890ABCD /* SmartCollectionViewVisibilityTracker.h in Headers */,
 				9DF2A1082F1234567890ABCD /* SmartCollectionViewEventBus.h in Headers */,
 				9DF2A10B2F1234567890ABCD /* SmartCollectionViewReusePool.h in Headers */,
+				9DF3B0A42F67B40000ABCD01 /* SmartCollectionViewItemView.h in Headers */,
+				9DF3B0B32F67B40000ABCD01 /* SmartCollectionViewItemShadowView.h in Headers */,
+				9DF3B0AB2F67B40000ABCD01 /* SmartCollectionViewItemManager.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -535,6 +556,9 @@
 				9DF2A1032F1234567890ABCD /* SmartCollectionViewVisibilityTracker.m in Sources */,
 				9DF2A1072F1234567890ABCD /* SmartCollectionViewEventBus.m in Sources */,
 				9DF2A1092F1234567890ABCD /* SmartCollectionViewReusePool.m in Sources */,
+				9DF3B0A32F67B40000ABCD01 /* SmartCollectionViewItemView.m in Sources */,
+				9DF3B0AD2F67B40000ABCD01 /* SmartCollectionViewItemShadowView.m in Sources */,
+				9DF3B0AA2F67B40000ABCD01 /* SmartCollectionViewItemManager.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

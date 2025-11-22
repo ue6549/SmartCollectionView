@@ -1,5 +1,9 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <React/RCTLog.h>
+
+// Reuse pool logs are always enabled (not conditional on DEBUG)
+#define SCVReusePoolLog(fmt, ...) // RCTLogInfo(@"[SCV-ReusePool] " fmt, ##__VA_ARGS__)
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -43,6 +47,23 @@ NS_ASSUME_NONNULL_BEGIN
  * Get the pool size for a specific item type.
  */
 - (NSInteger)poolSizeForItemType:(NSString *)itemType;
+
+/**
+ * Get statistics about the reuse pool for debugging.
+ * Returns a dictionary with pool sizes by type, total count, and metrics.
+ * 
+ * Note: Metrics (hit rate, enqueue/dequeue counts) are only included if
+ * SCV_ENABLE_METRICS is defined as 1. By default, metrics are enabled in
+ * DEBUG builds and disabled in RELEASE builds.
+ */
+- (NSDictionary<NSString *, id> *)poolStatistics;
+
+/**
+ * Reset all metrics counters (for testing).
+ * 
+ * Note: This is a no-op if SCV_ENABLE_METRICS is 0.
+ */
+- (void)resetMetrics;
 
 @end
 

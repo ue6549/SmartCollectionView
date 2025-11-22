@@ -25,9 +25,7 @@ function App(): JSX.Element {
   // Create data for FlatList including header
   const widgetData = [
     { id: 'header', type: 'header' },
-    { id: 'widget1', type: 'widget', longestItemPosition: 'last' as const },
-    { id: 'widget2', type: 'widget', longestItemPosition: 'thirdLast' as const },
-    { id: 'widget3', type: 'widget', longestItemPosition: 'secondLast' as const },
+    { id: 'widget-single', type: 'widget', longestItemPosition: 'last' as const },
   ];
 
   const renderItem = ({ item, index }: { item: any; index: number }) => {
@@ -74,7 +72,7 @@ function App(): JSX.Element {
           style={styles.rlv}
         />
       </View>
-    </View>
+        </View>
   );
 }
 

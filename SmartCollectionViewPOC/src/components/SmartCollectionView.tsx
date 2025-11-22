@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { requireNativeComponent, ViewStyle, NativeSyntheticEvent, View } from 'react-native';
+import { requireNativeComponent, ViewStyle, NativeSyntheticEvent } from 'react-native';
+import SmartCollectionViewItemWrapper from './SmartCollectionViewItemWrapper';
 
 interface RequestItemsEvent {
   indices: number[];
@@ -181,11 +182,18 @@ const SmartCollectionView: React.FC<SmartCollectionViewProps> = ({
   const itemsToRender = renderedIndices
     .filter(index => index >= 0 && index < data.length)
     .map(index => {
-      const item = renderItem({ item: data[index], index });
+      const element = renderItem({ item: data[index], index });
+      const itemType = getItemType ? getItemType(data[index], index) : 'default';
+
       return (
-        <View key={index} style={{ position: 'absolute' }}>
-          {item}
-        </View>
+        <SmartCollectionViewItemWrapper
+          key={index}
+          itemIndex={index}
+          itemType={itemType}
+          style={{ position: 'absolute' }}
+        >
+          {element}
+        </SmartCollectionViewItemWrapper>
       );
     });
   

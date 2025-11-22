@@ -44,27 +44,40 @@ This document tracks future improvements and enhancements for SmartCollectionVie
 
 ## Layout Enhancements
 
+### Layout Configuration Architecture
+- **Current State**: `itemSpacing` is a top-level prop (works for POC with horizontal layout only)
+- **Future Consideration**: When adding multiple layout types (vertical list, grids), evaluate layout configuration approach:
+  - Option 1: Keep layout-specific props at top level (e.g., `itemSpacing`, `lineSpacing` for grids)
+  - Option 2: Introduce `layoutConfig` object with layout-specific settings
+  - Option 3: Layout provider pattern where each layout type manages its own config
+- **Decision Needed**: Determine contract for how different layouts expose their configuration needs
+- **Note**: `itemSpacing` currently represents spacing along main scrolling axis (horizontal for horizontal layout, vertical for vertical layout)
+
 ### Vertical List Layout
 - Implement vertical scrolling list layout
 - Single column, items stacked vertically
 - Handle variable item widths
+- Use `itemSpacing` for vertical spacing between items
 
 ### Horizontal Grid Layout
 - Multi-row horizontal grid (e.g., 2 rows)
 - Support configurable number of rows
 - Efficient item positioning and row height calculation
 - Main use case: product grids in horizontal scrolling containers
+- **Spacing**: `itemSpacing` for horizontal spacing, `lineSpacing` (new prop) for vertical spacing between rows
 
 ### Vertical Grid Layout
 - Multi-column vertical grid
 - Support configurable number of columns
 - Column width calculation
 - Responsive grid based on container width
+- **Spacing**: `itemSpacing` for vertical spacing, `lineSpacing` (new prop) for horizontal spacing between columns
 
 ### Custom Layout Providers
 - Allow JS to provide custom layout calculation functions
 - Support arbitrary positioning logic
 - Enable complex layouts beyond standard list/grid
+- Layout providers should define their own configuration contract
 
 ## Main App Integration
 

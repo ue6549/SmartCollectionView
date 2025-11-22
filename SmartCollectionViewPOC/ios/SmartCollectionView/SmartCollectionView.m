@@ -17,13 +17,13 @@
 #import "SmartCollectionViewEventBus.h"
 #import "SmartCollectionViewScheduler.h"
 #import "SmartCollectionViewReusePool.h"
+#import "SmartCollectionViewItemView.h"
 
-// Debug logging helper
-#ifdef DEBUG
-//#define SCVLog(fmt, ...) NSLog(@"[SCV] " fmt, ##__VA_ARGS__)
-//#else
-#define SCVLog(fmt, ...)
-#endif
+// Debug logging helper (temporarily enabled for diagnostics)
+#define SCVLog(fmt, ...) // RCTLogInfo(@"[SCV] " fmt, ##__VA_ARGS__)
+
+// Reuse pool logs are always enabled (not conditional on DEBUG)
+#define SCVReusePoolLog(fmt, ...) // RCTLogInfo(@"[SCV-ReusePool] " fmt, ##__VA_ARGS__)
 
 @interface SmartCollectionView ()
 
@@ -66,13 +66,14 @@
 
 - (void)commonInit
 {
-    _virtualItems = [NSMutableArray array];
+    _virtualItems = [NSMutableDictionary dictionary];
     _layoutCache = [[SmartCollectionViewLayoutCache alloc] init];
     _cumulativeOffsets = [NSMutableArray array];
     _childViewRegistry = [NSMutableDictionary dictionary];
     _indexToWrapper = [NSMutableDictionary dictionary];
     _wrapperReusePool = [NSMutableArray array];
     _renderedIndices = [NSMutableSet set];
+    _mountedIndices = [NSMutableSet set];
     __weak typeof(self) weakSelf = self;
     _visibilityTracker = [[SmartCollectionViewVisibilityTracker alloc] initWithSizeProvider:^CGSize(NSInteger index) {
         return [weakSelf sizeForItemAtIndex:index];
@@ -93,6 +94,7 @@
     _hasScrolled = NO;
     _horizontal = YES;
     _estimatedItemSize = CGSizeMake(100, 80);
+    _itemSpacing = 0; // Default: no spacing between items
     _totalItemCount = 0;
     _needsFullRecompute = YES;
     _mountedCount = 0;
@@ -227,54 +229,97 @@
 
 - (void)addVirtualItem:(UIView *)item atIndex:(NSInteger)index
 {
-    if (index >= 0 && index <= _virtualItems.count) {
-        NSNumber *reactTag = item.reactTag;
-        if (reactTag != nil) {
-            _childViewRegistry[reactTag] = item;
-        }
-
-        if (item.superview != nil) {
-            [item removeFromSuperview];
-        }
-
-        [_virtualItems insertObject:item atIndex:index];
-        _needsFullRecompute = YES;
-        self.scheduler.totalItemCount = [self itemCount];
-        
-        SCVLog(@"Added virtual item at index %ld, total items: %ld", (long)index, (long)_virtualItems.count);
-        SCVLog(@"Child tag %@ initial frame %@", item.reactTag, NSStringFromCGRect(item.frame));
-        
-        // DON'T call recomputeLayout here - wait for updateWithLocalData to provide complete metadata
-        // Layout will be triggered when localData arrives with all item sizes
-        // This prevents multiple layout recomputes with incomplete data
+    if (index < 0) {
+        return;
     }
+    
+    NSNumber *indexKey = @(index);
+    NSNumber *reactTag = item.reactTag;
+    if (reactTag != nil) {
+        _childViewRegistry[reactTag] = item;
+    }
+    
+    if (item.superview != nil) {
+        [item removeFromSuperview];
+    }
+    
+    _virtualItems[indexKey] = item;
+    _needsFullRecompute = YES;
+    self.scheduler.totalItemCount = [self itemCount];
+    
+    SCVLog(@"Added virtual item at index %ld, total tracked items: %lu", (long)index, (unsigned long)_virtualItems.count);
+    SCVLog(@"Child tag %@ initial frame %@", item.reactTag, NSStringFromCGRect(item.frame));
+    
+    // DON'T call recomputeLayout here - wait for updateWithLocalData to provide complete metadata
+    // Layout will be triggered when localData arrives with all item sizes
+    // This prevents multiple layout recomputes with incomplete data
 }
 
-- (void)removeVirtualItem:(UIView *)item
+- (void)removeVirtualItem:(UIView *)item atIndex:(NSInteger)index
 {
-    NSInteger index = [_virtualItems indexOfObject:item];
-    if (index != NSNotFound) {
-        [_virtualItems removeObjectAtIndex:index];
-        NSNumber *reactTag = item.reactTag;
-        if (reactTag != nil) {
-            [_childViewRegistry removeObjectForKey:reactTag];
+    NSNumber *indexKey = @(index);
+    UIView *storedItem = _virtualItems[indexKey];
+    if (storedItem != item) {
+        // Fallback: find by pointer if indices mismatched (e.g., unexpected view type)
+        for (NSNumber *key in _virtualItems.allKeys) {
+            if (_virtualItems[key] == item) {
+                indexKey = key;
+                storedItem = item;
+                break;
+            }
         }
-        [_mountedIndices removeObject:@(index)];
-        _needsFullRecompute = YES;
-        self.scheduler.totalItemCount = [self itemCount];
-        
-        SCVLog(@"Removed virtual item at index %ld, total items: %ld", (long)index, (long)_virtualItems.count);
-        
-        [self recomputeLayout];
     }
+    
+    if (!storedItem) {
+        return;
+    }
+    
+    [_virtualItems removeObjectForKey:indexKey];
+    NSNumber *reactTag = item.reactTag;
+    if (reactTag != nil) {
+        [_childViewRegistry removeObjectForKey:reactTag];
+    }
+    [_mountedIndices removeObject:indexKey];
+    _needsFullRecompute = YES;
+    self.scheduler.totalItemCount = [self itemCount];
+    
+    SCVLog(@"Removed virtual item at index %@, total tracked items: %lu", indexKey, (unsigned long)_virtualItems.count);
+    
+    [self recomputeLayout];
+}
+
+- (NSInteger)effectiveItemIndexForView:(UIView *)view fallback:(NSInteger)fallback
+{
+    if ([view isKindOfClass:[SmartCollectionViewItemView class]]) {
+        SmartCollectionViewItemView *itemView = (SmartCollectionViewItemView *)view;
+        if (itemView.itemIndex >= 0) {
+            return itemView.itemIndex;
+        }
+    }
+    
+    if (fallback != NSNotFound) {
+        return fallback;
+    }
+    
+    __block NSInteger resolvedIndex = NSNotFound;
+    [_virtualItems enumerateKeysAndObjectsUsingBlock:^(NSNumber *key, UIView *obj, BOOL *stop) {
+        if (obj == view) {
+            resolvedIndex = [key integerValue];
+            *stop = YES;
+        }
+    }];
+    
+    return resolvedIndex;
 }
 
 - (void)registerChildView:(UIView *)view atIndex:(NSInteger)index
 {
-    SCVLog(@"registerChildView: view tag %@ at index %ld", view.reactTag, (long)index);
+    NSInteger effectiveIndex = [self effectiveItemIndexForView:view fallback:index];
+    
+    SCVLog(@"registerChildView: view tag %@ mapped to data index %ld (react index %ld)", view.reactTag, (long)effectiveIndex, (long)index);
     
     // Mark this index as rendered
-    [_renderedIndices addObject:@(index)];
+    [_renderedIndices addObject:@(effectiveIndex)];
     [self.scheduler updateRenderedIndices:[NSSet setWithSet:_renderedIndices]];
     
     // Also add to registry immediately by reactTag
@@ -283,7 +328,7 @@
         SCVLog(@"Added to childViewRegistry: tag %@", view.reactTag);
     }
     
-    [self addVirtualItem:view atIndex:index];
+    [self addVirtualItem:view atIndex:effectiveIndex];
     
     // After adding a new item, check if we should trigger layout and mounting
     // This handles the case where items arrive after scroll (requested via onRequestItems)
@@ -294,8 +339,8 @@
         dispatch_async(dispatch_get_main_queue(), ^{
             // Check if this item is in the current visible/mount range
             NSRange currentRange = [self computeRangeToLayout];
-            if (index >= currentRange.location && index < NSMaxRange(currentRange)) {
-                SCVLog(@"New item %ld is in current mount range %@ - triggering update", (long)index, NSStringFromRange(currentRange));
+            if (effectiveIndex >= currentRange.location && effectiveIndex < NSMaxRange(currentRange)) {
+                SCVLog(@"New item %ld is in current mount range %@ - triggering update", (long)effectiveIndex, NSStringFromRange(currentRange));
                 [self updateVisibleItems];
             }
         });
@@ -304,7 +349,10 @@
 
 - (void)unregisterChildView:(UIView *)view
 {
-    [self removeVirtualItem:view];
+    NSInteger effectiveIndex = [self effectiveItemIndexForView:view fallback:NSNotFound];
+    if (effectiveIndex != NSNotFound) {
+        [self removeVirtualItem:view atIndex:effectiveIndex];
+    }
 }
 
 - (void)updateWithLocalData:(SmartCollectionViewLocalData *)localData
@@ -389,16 +437,20 @@
 {
     SCVLog(@"viewForItemAtIndex %ld", (long)index);
     
+    // First, try to find by index in virtualItems (works even after recycling when reactTag changes)
+    NSNumber *indexKey = @(index);
+    UIView *view = _virtualItems[indexKey];
+    if (view) {
+        SCVLog(@"Found view for index %ld in virtualItems (tag: %@)", (long)index, view.reactTag);
+        return view;
+    }
+    
+    // Fallback: try reactTag lookup from metadata (for non-recycled views)
     if (self.localData && index < self.localData.items.count) {
         SmartCollectionViewItemMetadata *metadata = self.localData.items[index];
         SCVLog(@"Looking for view with reactTag %@ in registry (count: %lu)", metadata.reactTag, (unsigned long)_childViewRegistry.count);
         
-        // Log all registered tags
-        for (NSNumber *tag in _childViewRegistry.allKeys) {
-            SCVLog(@"  Registered tag: %@", tag);
-        }
-        
-        UIView *view = _childViewRegistry[metadata.reactTag];
+        view = _childViewRegistry[metadata.reactTag];
         if (view) {
             SCVLog(@"Found view for index %ld with tag %@", (long)index, metadata.reactTag);
             return view;
@@ -415,6 +467,28 @@
 
     SCVLog(@"viewForItemAtIndex %ld: returning nil", (long)index);
     return nil;
+}
+
+- (void)applyItemFrame:(UIView *)item toWrapper:(SmartCollectionViewWrapperView *)wrapper
+{
+    if (!item || !wrapper) {
+        return;
+    }
+    
+    if (item.superview != wrapper) {
+        if (item.superview) {
+            [item removeFromSuperview];
+        }
+        [wrapper addSubview:item];
+    }
+    
+    CGRect bounds = wrapper.bounds;
+    if (!CGRectEqualToRect(item.frame, bounds)) {
+        item.frame = bounds;
+    }
+    item.autoresizingMask = UIViewAutoresizingNone;
+    [item setNeedsLayout];
+    [item layoutIfNeeded];
 }
 
 - (void)recomputeLayout
@@ -506,6 +580,10 @@
         CGSize itemSize = (i < actualSizes.count) ? [actualSizes[i] CGSizeValue] : _estimatedItemSize;
         
         // Horizontal layout: items positioned side by side, all same height (max)
+        // Add spacing before each item (except the first one)
+        if (i > 0) {
+            currentOffset += _itemSpacing;
+        }
         CGRect frame = CGRectMake(currentOffset, 0, itemSize.width, maxHeight);
         currentOffset += itemSize.width;
         
@@ -719,26 +797,78 @@
         SCVLog(@"❌ mountItemAtIndex: Invalid index %ld", (long)index);
         return;
     }
-
-    // First, try to get view from registry (preferred - React Native has rendered it)
-    UIView *item = [self viewForItemAtIndex:index];
+    UIView *item = nil;
+    BOOL isRecycled = NO;
     
-    // If no view in registry, try to dequeue from reuse pool (if itemTypes map is provided)
-    if (!item && _itemTypes) {
+    if (_itemTypes) {
         NSString *itemType = _itemTypes[@(index)];
+        SCVReusePoolLog(@"🔍 mountItemAtIndex %ld: Checking reuse pool first, itemType from map: %@", (long)index, itemType ?: @"nil");
         if (itemType) {
             item = [_reusePool dequeueViewForItemType:itemType];
             if (item) {
-                SCVLog(@"♻️  Reused view from pool for index %ld (type: %@)", (long)index, itemType);
-                // Note: Recycled view's reactTag might not match expected tag for this index.
-                // React Native will handle reconciliation when JS renders this index.
+                isRecycled = YES;
+                SCVReusePoolLog(@"♻️  Reused view from pool for index %ld (type: %@)", (long)index, itemType);
+                if (item.reactTag) {
+                    [_childViewRegistry removeObjectForKey:item.reactTag];
+                }
+                
+                // Update props to trigger React Native reconciliation
+                if ([item isKindOfClass:[SmartCollectionViewItemView class]]) {
+                    SmartCollectionViewItemView *itemView = (SmartCollectionViewItemView *)item;
+                    
+                    // Enter placeholder mode while React Native updates content
+                    [itemView enterPlaceholderMode];
+                    
+                    // Update props - React Native will reconcile when these change
+                    // Store old values to force change detection
+                    NSInteger oldIndex = itemView.itemIndex;
+                    NSString *oldType = itemView.itemType;
+                    
+                    itemView.itemIndex = index;
+                    itemView.itemType = itemType;
+                    SCVReusePoolLog(@"✅ Updated recycled view props: itemIndex %ld -> %ld, itemType %@ -> %@", 
+                                   (long)oldIndex, (long)index, oldType ?: @"nil", itemType ?: @"nil");
+                    
+                    // Force React Native to see the prop change by triggering multiple reconciliation passes
+                    // This is especially important when scrolling backward
+                    [itemView setNeedsLayout];
+                    [itemView layoutIfNeeded];
+                    
+                    // Force parent to update (helps trigger React Native reconciliation)
+                    if (itemView.superview) {
+                        [itemView.superview setNeedsLayout];
+                        [itemView.superview layoutIfNeeded];
+                    }
+                    
+                    // Trigger React Native's didUpdateReactSubviews by forcing a layout pass
+                    // This helps ensure React Native sees the prop change and reconciles
+                    [itemView setNeedsUpdateConstraints];
+                    [itemView updateConstraintsIfNeeded];
+                }
             }
         }
     }
     
     if (!item) {
-        SCVLog(@"❌ mountItemAtIndex: No view available for index %ld", (long)index);
-        return;
+        item = [self viewForItemAtIndex:index];
+    }
+    
+    // If still no item, create a placeholder view to prevent blank space
+    if (!item) {
+        SCVLog(@"⚠️  mountItemAtIndex: No view available for index %ld, creating placeholder", (long)index);
+        SmartCollectionViewItemView *placeholderView = [[SmartCollectionViewItemView alloc] initWithFrame:CGRectZero];
+        placeholderView.itemIndex = index;
+        if (_itemTypes) {
+            placeholderView.itemType = _itemTypes[@(index)];
+        }
+        [placeholderView enterPlaceholderMode];
+        item = placeholderView;
+    }
+    
+    NSNumber *indexKey = @(index);
+    _virtualItems[indexKey] = item;
+    if (item.reactTag) {
+        _childViewRegistry[item.reactTag] = item;
     }
     
     SmartCollectionViewLayoutSpec *spec = [self.layoutCache specForIndex:index];
@@ -746,15 +876,12 @@
         SCVLog(@"❌ mountItemAtIndex: No layout spec for index %ld", (long)index);
         return;
     }
-
     CGRect frame = spec.frame;
-    if (CGRectIsEmpty(frame) || CGRectIsNull(frame)) {
+    if (CGRectIsEmpty(frame) || CGRectIsNull(frame) || frame.size.width <= 0 || frame.size.height <= 0) {
         SCVLog(@"❌ mountItemAtIndex: Invalid frame %@ for index %ld", NSStringFromCGRect(frame), (long)index);
         return;
     }
-
-    SCVLog(@"🔵 mountItemAtIndex: %ld - frame: %@, item tag: %@", (long)index, NSStringFromCGRect(frame), item.reactTag);
-
+    
     SmartCollectionViewWrapperView *wrapper = _indexToWrapper[@(index)];
     if (!wrapper) {
         wrapper = [self dequeueWrapper];
@@ -763,123 +890,106 @@
             return;
         }
         _indexToWrapper[@(index)] = wrapper;
-        SCVLog(@"Created new wrapper for index %ld", (long)index);
-    } else {
-        SCVLog(@"Reusing existing wrapper for index %ld", (long)index);
     }
-
+    
     wrapper.reactTag = item.reactTag;
     wrapper.currentIndex = @(index);
     wrapper.frame = frame;
-
-    if (wrapper.superview != _containerView) {
-        SCVLog(@"Adding wrapper to containerView (index %ld)", (long)index);
-        [_containerView addSubview:wrapper];
-        SCVLog(@"ContainerView frame: %@, subviews count: %lu", NSStringFromCGRect(_containerView.frame), (unsigned long)_containerView.subviews.count);
-    }
-
-    if (item.superview != wrapper) {
-        if (item.superview) {
-            SCVLog(@"Removing item from old superview: %@", item.superview);
-            [item removeFromSuperview];
-        }
-        item.frame = wrapper.bounds;
-        item.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        [wrapper addSubview:item];
-        [item setNeedsLayout];
-        [item layoutIfNeeded];
-        SCVLog(@"✅ Added React child to wrapper, child frame: %@, wrapper bounds: %@", NSStringFromCGRect(item.frame), NSStringFromCGRect(wrapper.bounds));
-    } else {
-        item.frame = wrapper.bounds;
-        [item setNeedsLayout];
-        [item layoutIfNeeded];
-        SCVLog(@"✅ Updated React child frame for reused wrapper");
-    }
-
-    if (![_mountedIndices containsObject:@(index)]) {
-        [_mountedIndices addObject:@(index)];
-        SCVLog(@"✅ Successfully mounted item %ld - wrapper: %@, in hierarchy: %@, mounted count: %lu", 
-               (long)index, NSStringFromCGRect(wrapper.frame), wrapper.superview ? @"YES" : @"NO", (unsigned long)_mountedIndices.count);
-    } else {
-        SCVLog(@"⚠️  Item %ld already in mountedIndices, skipping add", (long)index);
-    }
     
-    // Verify wrapper is actually in the hierarchy
     if (wrapper.superview != _containerView) {
-        SCVLog(@"⚠️  Wrapper for index %ld not in containerView! Re-adding...", (long)index);
         [_containerView addSubview:wrapper];
     }
     
-    // Verify item is in wrapper
-    if (item.superview != wrapper) {
-        SCVLog(@"⚠️  Item for index %ld not in wrapper! Re-adding...", (long)index);
-        [item removeFromSuperview];
-        item.frame = wrapper.bounds;
-        item.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        [wrapper addSubview:item];
-        [item setNeedsLayout];
-        [item layoutIfNeeded];
+    [self applyItemFrame:item toWrapper:wrapper];
+    
+    if (![_mountedIndices containsObject:indexKey]) {
+        [_mountedIndices addObject:indexKey];
     }
     
-    // After mounting and laying out, measure the actual item height
-    // This is important because the item's intrinsic content size might be larger than estimated
-    [item layoutIfNeeded]; // Ensure item is fully laid out
-    CGSize itemActualSize = item.frame.size;
-    
-    // Check if this item's actual height is larger than what we calculated
-    // If so, we need to recalculate layout with the new max height
-    if (itemActualSize.height > 0) {
-        // Get the current max height from our layout cache
-        CGFloat currentCalculatedMaxHeight = 0;
-        for (SmartCollectionViewLayoutSpec *existingSpec in [self.layoutCache allSpecs]) {
-            if (existingSpec.frame.size.height > currentCalculatedMaxHeight) {
-                currentCalculatedMaxHeight = existingSpec.frame.size.height;
-            }
-        }
-
-        if (itemActualSize.height > currentCalculatedMaxHeight) {
-            SCVLog(@"⚠️  Mounted item %ld has actual height %.2f > calculated max %.2f, triggering height recalculation",
-                   (long)index, itemActualSize.height, currentCalculatedMaxHeight);
-
-            spec.frame = CGRectMake(spec.frame.origin.x,
-                                    spec.frame.origin.y,
-                                    spec.frame.size.width,
-                                    itemActualSize.height);
-            [self.layoutCache setSpec:spec forIndex:index];
-
-            _needsFullRecompute = YES;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [self recomputeLayout];
-            });
-        }
+    // For recycled views, schedule multiple deferred checks to ensure content updated
+    // This is critical when scrolling backward as React Native reconciliation can be slower
+    if (isRecycled && [item isKindOfClass:[SmartCollectionViewItemView class]]) {
+        SmartCollectionViewItemView *itemView = (SmartCollectionViewItemView *)item;
+        NSInteger checkIndex = index; // Capture index for deferred checks
+        
+        // First check: immediate (next run loop)
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self checkAndPromoteRecycledView:itemView atIndex:checkIndex attempt:1];
+        });
+        
+        // Second check: after a short delay (for slower reconciliations)
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self checkAndPromoteRecycledView:itemView atIndex:checkIndex attempt:2];
+        });
+        
+        // Third check: after longer delay (fallback for very slow reconciliations)
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self checkAndPromoteRecycledView:itemView atIndex:checkIndex attempt:3];
+        });
     }
+    
+    SCVLog(@"✅ Mounted item %ld - wrapper: %@, item frame: %@, recycled: %@", 
+           (long)index, NSStringFromCGRect(wrapper.frame), NSStringFromCGRect(item.frame), 
+           isRecycled ? @"YES" : @"NO");
 }
+
 
 - (void)unmountItemAtIndex:(NSInteger)index
 {
+    SCVReusePoolLog(@"🔍 unmountItemAtIndex called for index %ld", (long)index);
+    
     if ([_mountedIndices containsObject:@(index)]) {
         SmartCollectionViewWrapperView *wrapper = _indexToWrapper[@(index)];
+        SCVReusePoolLog(@"🔍 unmountItemAtIndex %ld: wrapper exists: %@, subviews count: %lu", 
+                        (long)index, wrapper ? @"YES" : @"NO", (unsigned long)wrapper.subviews.count);
+        
         if (wrapper) {
             UIView *item = wrapper.subviews.firstObject;
+            SCVReusePoolLog(@"🔍 unmountItemAtIndex %ld: item exists: %@, _itemTypes exists: %@", 
+                            (long)index, item ? @"YES" : @"NO", _itemTypes ? @"YES" : @"NO");
+            
             if (item) {
                 [item removeFromSuperview];
                 
                 // Enqueue to reuse pool if itemTypes map is provided
                 if (_itemTypes) {
                     NSString *itemType = _itemTypes[@(index)];
+                    SCVReusePoolLog(@"🔍 unmountItemAtIndex %ld: itemType from map: %@", (long)index, itemType ?: @"nil");
+                    
                     if (itemType) {
                         [_reusePool enqueueView:item forItemType:itemType];
-                        SCVLog(@"♻️  Enqueued view to reuse pool for index %ld (type: %@)", (long)index, itemType);
+                        SCVReusePoolLog(@"♻️  Enqueued view to reuse pool for index %ld (type: %@)", (long)index, itemType);
+                    } else {
+                        SCVReusePoolLog(@"⚠️  Attempted to enqueue view for index %ld but no itemType found in map", (long)index);
                     }
+                } else {
+                    SCVReusePoolLog(@"⚠️  Attempted to enqueue view for index %ld but no itemTypes map provided", (long)index);
                 }
+            } else {
+                SCVReusePoolLog(@"⚠️  unmountItemAtIndex %ld: No item found in wrapper.subviews (count: %lu)", 
+                                (long)index, (unsigned long)wrapper.subviews.count);
             }
             [wrapper removeFromSuperview];
             wrapper.reactTag = nil;
             wrapper.currentIndex = nil;
             [self recycleWrapper:wrapper];
             [_indexToWrapper removeObjectForKey:@(index)];
+            
+            // Remove from virtualItems so the index->view mapping is cleared
+            // The view is still accessible via reuse pool or childViewRegistry (by reactTag)
+            if (item) {
+                NSNumber *indexKey = @(index);
+                if (_virtualItems[indexKey] == item) {
+                    [_virtualItems removeObjectForKey:indexKey];
+                    SCVReusePoolLog(@"Removed view from virtualItems for index %ld", (long)index);
+                }
+            }
+        } else {
+            SCVReusePoolLog(@"⚠️  unmountItemAtIndex %ld: No wrapper found in _indexToWrapper", (long)index);
         }
         [_mountedIndices removeObject:@(index)];
+    } else {
+        SCVReusePoolLog(@"⚠️  unmountItemAtIndex %ld: Index not in _mountedIndices", (long)index);
     }
 }
 
@@ -897,6 +1007,16 @@
     NSInteger start = MAX(0, (NSInteger)range.location - _overscanCount);
     NSInteger end = MIN([self itemCount] - 1, NSMaxRange(range) + _overscanCount);
     return NSMakeRange(start, end - start + 1);
+}
+
+- (void)setItemTypes:(NSDictionary<NSNumber *,NSString *> *)itemTypes
+{
+    _itemTypes = itemTypes;
+    if (itemTypes) {
+        SCVReusePoolLog(@"✅ itemTypes set on SmartCollectionView: %lu entries", (unsigned long)itemTypes.count);
+    } else {
+        SCVReusePoolLog(@"⚠️  itemTypes cleared on SmartCollectionView (set to nil)");
+    }
 }
 
 - (void)updateSchedulerWithEffectiveValues
@@ -1082,26 +1202,31 @@
         }
     }
     
-    // Only unmount items if we have replacements ready, OR if they're far outside the visible range
-    // Use a larger unmount threshold to prevent premature unmounting
+    // Only unmount items if they're far outside the visible range
+    // Unmount threshold equals overscan - items beyond overscan buffer can be safely unmounted
+    // Shadow buffer ensures shadow tree is available, recycling makes remounting fast
     NSRange unmountRange = [self expandRangeWithOverscan:visibleRange];
-    NSInteger unmountThreshold = _overscanCount * 2; // Items beyond 2x overscan are safe to unmount
+    NSInteger unmountThreshold = _overscanCount; // Items beyond overscan range are safe to unmount (shadow buffer + recycling handle remounting)
     
     NSMutableSet *indicesToUnmount = [NSMutableSet set];
     for (NSNumber *mountedIndex in _mountedIndices) {
         NSInteger index = [mountedIndex integerValue];
         
-        // Unmount if:
-        // 1. Item is outside the unmount range (far from visible)
-        // 2. OR item is outside rangeToMount AND we have at least one replacement ready
+        // NEVER unmount items in the visible range
+        if (index >= visibleRange.location && index < NSMaxRange(visibleRange)) {
+            continue; // Keep visible items mounted
+        }
+        
+        // NEVER unmount items in rangeToMount (they're needed soon)
+        if (index >= rangeToMount.location && index < NSMaxRange(rangeToMount)) {
+            continue; // Keep items in mount range
+        }
+        
+        // Only unmount items that are far outside the visible range
         BOOL isFarOutsideVisible = (index < unmountRange.location - unmountThreshold || 
                                    index >= NSMaxRange(unmountRange) + unmountThreshold);
-        BOOL hasReplacementReady = (itemsReadyToMount.count > 0 && index < rangeToMount.location);
         
-        if (isFarOutsideVisible || (hasReplacementReady && index < rangeToMount.location)) {
-            [indicesToUnmount addObject:mountedIndex];
-        } else if (index >= NSMaxRange(rangeToMount) && itemsReadyToMount.count > 0) {
-            // Also unmount items beyond rangeToMount if we have replacements
+        if (isFarOutsideVisible) {
             [indicesToUnmount addObject:mountedIndex];
         }
     }
@@ -1121,6 +1246,12 @@
         }
         SmartCollectionViewLayoutSpec *spec = [self.layoutCache specForIndex:i];
         CGRect frame = spec ? [spec frame] : CGRectZero;
+        
+        // Validate frame before proceeding
+        if (CGRectIsEmpty(frame) || CGRectIsNull(frame) || frame.size.width <= 0 || frame.size.height <= 0) {
+            SCVLog(@"⚠️  updateVisibleItems: Skipping item %ld - invalid frame %@", (long)i, NSStringFromCGRect(frame));
+            continue;
+        }
 
         if ([_mountedIndices containsObject:indexNumber]) {
             // Item already mounted - verify it's still in hierarchy and update if needed
@@ -1141,6 +1272,19 @@
                 // Get the actual item view for this index
                 UIView *item = [self viewForItemAtIndex:i];
                 
+                // If no view found, create placeholder to prevent blank space
+                if (!item) {
+                    SCVLog(@"⚠️  Item %ld view not found, creating placeholder", (long)i);
+                    SmartCollectionViewItemView *placeholderView = [[SmartCollectionViewItemView alloc] initWithFrame:CGRectZero];
+                    placeholderView.itemIndex = i;
+                    if (_itemTypes) {
+                        placeholderView.itemType = _itemTypes[@(i)];
+                    }
+                    [placeholderView enterPlaceholderMode];
+                    item = placeholderView;
+                    _virtualItems[@(i)] = item;
+                }
+                
                 // Verify item is in wrapper
                 UIView *child = wrapper.subviews.firstObject;
                 if (!child || (item && child != item)) {
@@ -1149,14 +1293,8 @@
                         if (item.superview) {
                             [item removeFromSuperview];
                         }
-                        item.frame = wrapper.bounds;
-                        item.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-                        [wrapper addSubview:item];
-                        [item setNeedsLayout];
-                        [item layoutIfNeeded];
+                        [self applyItemFrame:item toWrapper:wrapper];
                         updatedCount++;
-                    } else {
-                        SCVLog(@"⚠️  Item %ld view not found for verification!", (long)i);
                     }
                 }
                 
@@ -1165,15 +1303,102 @@
                     SCVLog(@"Updating mounted wrapper for index %ld: %@ -> %@", (long)i, NSStringFromCGRect(wrapper.frame), NSStringFromCGRect(frame));
                     wrapper.frame = frame;
                     if (child) {
-                        child.frame = wrapper.bounds;
+                        // Get actual React child content size (especially important after recycling)
+                        CGSize actualItemSize = [self sizeForItemAtIndex:i];
+                        
+                        // If child is SmartCollectionViewItemView, get actual React content size
+                        // contentView.frame.size includes margins, borders, padding (React Native's frame.size)
+                        if ([child isKindOfClass:[SmartCollectionViewItemView class]]) {
+                            SmartCollectionViewItemView *itemView = (SmartCollectionViewItemView *)child;
+                            UIView *contentView = itemView.reactSubviews.firstObject;
+                            if (contentView) {
+                                // Force layout to ensure React Native has updated content
+                                [itemView setNeedsLayout];
+                                [itemView layoutIfNeeded];
+                                [contentView setNeedsLayout];
+                                [contentView layoutIfNeeded];
+                                
+                                CGSize contentSize = contentView.frame.size;
+                                if (!CGSizeEqualToSize(contentSize, CGSizeZero) && contentSize.width > 0 && contentSize.height > 0) {
+                                    // Use actual React child content size (includes margins/borders)
+                                    actualItemSize = contentSize;
+                                    SCVLog(@"🔵 updateVisibleItems %ld: Using actual React child content size (includes margins): %@", (long)i, NSStringFromCGSize(contentSize));
+                                }
+                            }
+                        }
+                        
+                        if (actualItemSize.width <= 0 || actualItemSize.height <= 0) {
+                            actualItemSize = _estimatedItemSize;
+                            if (actualItemSize.width <= 0) actualItemSize.width = 100;
+                            if (actualItemSize.height <= 0) actualItemSize.height = 80;
+                        }
+                        
+                        CGRect itemFrame = CGRectMake(0, 
+                                                      0, // Top-aligned, not centered
+                                                      actualItemSize.width, // Use actual width (includes margins)
+                                                      actualItemSize.height);
+                        child.frame = itemFrame;
+                        child.autoresizingMask = UIViewAutoresizingNone; // Use fixed size, no autoresizing
+                        
+                        // Update wrapper size to match actual content size (includes margins)
+                        // Use tolerance to avoid tiny floating-point differences
+                        const CGFloat kSizeTolerance = 1.0;
+                        if (actualItemSize.width > 0 && actualItemSize.height > 0) {
+                            CGRect updatedWrapperFrame = wrapper.frame;
+                            BOOL needsUpdate = NO;
+                            
+                            CGFloat widthDiff = fabs(actualItemSize.width - frame.size.width);
+                            CGFloat heightDiff = fabs(actualItemSize.height - frame.size.height);
+                            
+                            // Update width if significantly different
+                            if (widthDiff > kSizeTolerance) {
+                                updatedWrapperFrame.size.width = actualItemSize.width;
+                                needsUpdate = YES;
+                                SCVLog(@"🔵 updateVisibleItems %ld: Updated wrapper width from %.2f to %.2f (diff: %.2f)", (long)i, frame.size.width, actualItemSize.width, widthDiff);
+                            }
+                            
+                            // For height, ensure wrapper is at least content height (to prevent cutting)
+                            if (actualItemSize.height > frame.size.height + kSizeTolerance) {
+                                updatedWrapperFrame.size.height = actualItemSize.height;
+                                needsUpdate = YES;
+                                SCVLog(@"🔵 updateVisibleItems %ld: Updated wrapper height from %.2f to %.2f to accommodate content (diff: %.2f)", (long)i, frame.size.height, actualItemSize.height, heightDiff);
+                            }
+                            
+                            if (needsUpdate) {
+                                wrapper.frame = updatedWrapperFrame;
+                                
+                                // CRITICAL: After updating wrapper size, ensure child frame matches with origin (0, 0)
+                                if (child && child.superview == wrapper) {
+                                    CGRect itemFrame = CGRectMake(0, 0, actualItemSize.width, actualItemSize.height);
+                                    child.frame = itemFrame;
+                                    SCVLog(@"🔵 updateVisibleItems %ld: Updated child frame to match wrapper: %@ (origin: %.2f, %.2f)", 
+                                           (long)i, NSStringFromCGRect(itemFrame), itemFrame.origin.x, itemFrame.origin.y);
+                                }
+                            }
+                        }
+                        
                         [child setNeedsLayout];
                         [child layoutIfNeeded];
+                        
+                        // CRITICAL: Verify and fix child frame origin - must always be (0, 0)
+                        if (child.superview == wrapper && (child.frame.origin.x != 0 || child.frame.origin.y != 0)) {
+                            CGPoint oldOrigin = child.frame.origin;
+                            CGRect correctedFrame = child.frame;
+                            correctedFrame.origin = CGPointMake(0, 0);
+                            child.frame = correctedFrame;
+                            SCVLog(@"⚠️  updateVisibleItems: Fixed child frame origin from (%.2f, %.2f) to (0, 0) for index %ld", 
+                                   oldOrigin.x, oldOrigin.y, (long)i);
+                        }
                     }
                     updatedCount++;
                 } else {
                     SCVLog(@"Item %ld already mounted with correct frame %@", (long)i, NSStringFromCGRect(frame));
                 }
-            }
+				UIView *finalChild = wrapper.subviews.firstObject;
+				if (finalChild) {
+					[self applyItemFrame:finalChild toWrapper:wrapper];
+				}
+			}
             mountedCount++;
         } else {
             // Item not mounted yet - mount it
@@ -1185,8 +1410,10 @@
     }
     
     // Now unmount after mounts to avoid immediate reuse of just-unmounted wrappers
-    SCVLog(@"Unmounting %lu items: %@", (unsigned long)indicesToUnmount.count, indicesToUnmount);
+    SCVReusePoolLog(@"🔍 updateVisibleItems: Unmounting %lu items: %@", (unsigned long)indicesToUnmount.count, indicesToUnmount);
+    SCVReusePoolLog(@"🔍 updateVisibleItems: Currently mounted indices before unmount: %@", _mountedIndices);
     for (NSNumber *indexNum in indicesToUnmount) {
+        SCVReusePoolLog(@"🔍 updateVisibleItems: About to unmount index %ld", (long)[indexNum integerValue]);
         [self unmountItemAtIndex:[indexNum integerValue]];
     }
     
@@ -1335,6 +1562,57 @@
     }
     _maxToRenderPerBatch = maxToRenderPerBatch;
     [self updateSchedulerWithEffectiveValues];
+}
+
+- (void)checkAndPromoteRecycledView:(SmartCollectionViewItemView *)itemView atIndex:(NSInteger)index attempt:(NSInteger)attempt
+{
+    if (!itemView) {
+        return;
+    }
+    
+    // Verify view is still mounted at this index (hasn't been recycled again)
+    NSNumber *indexKey = @(index);
+    UIView *currentView = _virtualItems[indexKey];
+    if (currentView != itemView || itemView.itemIndex != index) {
+        SCVLog(@"⚠️  Recycled view check skipped - view at index %ld has been recycled again or index changed", (long)index);
+        return;
+    }
+    
+    // Verify view is still in the hierarchy
+    if (!itemView.superview) {
+        SCVLog(@"⚠️  Recycled view check skipped - view at index %ld is not in hierarchy", (long)index);
+        return;
+    }
+    
+    // Check if content is ready
+    if (itemView.isInPlaceholderMode) {
+        UIView *contentView = itemView.reactSubviews.firstObject;
+        
+        // Force layout to ensure React Native has updated
+        [itemView setNeedsLayout];
+        [itemView layoutIfNeeded];
+        if (contentView) {
+            [contentView setNeedsLayout];
+            [contentView layoutIfNeeded];
+        }
+        
+        // Check if content is now ready
+        if (contentView && contentView.frame.size.width > 0 && contentView.frame.size.height > 0) {
+            SCVLog(@"✅ Recycled view %ld content ready on attempt %ld, promoting", (long)index, (long)attempt);
+            [itemView promoteContentIfAvailable];
+        } else if (attempt < 3) {
+            SCVLog(@"⚠️  Recycled view %ld still in placeholder mode on attempt %ld, will check again", (long)index, (long)attempt);
+        } else {
+            SCVLog(@"⚠️  Recycled view %ld still in placeholder mode after all attempts, content may not be ready", (long)index);
+            // Force promotion anyway - better to show stale content than blank space
+            [itemView promoteContentIfAvailable];
+        }
+    } else {
+        // Already promoted, no need to check
+        if (attempt == 1) {
+            SCVLog(@"✅ Recycled view %ld already promoted on first check", (long)index);
+        }
+    }
 }
 
 - (void)syncPropsToShadowView
